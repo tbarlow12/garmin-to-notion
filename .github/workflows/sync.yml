@@ -2,22 +2,27 @@ name: Garmin to Notion Sync
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    # Times pegged to America/Denver MDT (UTC-6). In MST (winter) each run
+    # shifts +1h local: 9 AM / 1 PM / 9 PM / 1 AM. GitHub cron is UTC-only.
+    - cron: '0 14 * * *'  # 8 AM MDT
+    - cron: '0 18 * * *'  # 12 PM MDT
+    - cron: '0 2 * * *'   # 8 PM MDT (prev day UTC)
+    - cron: '0 6 * * *'   # 12 AM MDT (prev day UTC)
   workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Cache pip packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -25,7 +30,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Restore Garmin tokens
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: garmin-tokens
         with:
           path: ~/.garmin_tokens
