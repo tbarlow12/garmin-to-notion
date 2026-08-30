@@ -90,25 +90,35 @@ def _init_garmin_with_tokens(tokens: dict) -> GarminClient:
         **{k: v for k, v in oauth2.items() if k in garth.sso.OAuth2Token.__dataclass_fields__}
     )
 
-    # Load profile (socialProfile works with OAuth2 bearer tokens)
+    # Load profile (socialProfile works with OAuth2 bearer tokens). This also
+    # doubles as a liveness check: if neither this nor the settings call
+    # below succeeds, the token pair is dead and the caller must fall
+    # through to the next auth strategy rather than treat this as a login.
+    profile_ok = False
     try:
         profile = garmin.garth.connectapi("/userprofile-service/socialProfile")
         if profile and isinstance(profile, dict):
             garmin.display_name = profile.get("displayName")
             garmin.full_name = profile.get("fullName", profile.get("displayName"))
+            profile_ok = True
     except Exception:
         garmin.display_name = None
         garmin.full_name = None
 
     # Load settings
+    settings_ok = False
     try:
-        settings = garmin.garth.connectapi("/userprofile-service/usersettings")
-        if settings and isinstance(settings, dict) and "userData" in settings:
-            garmin.unit_system = settings["userData"].get("measurementSystem")
+        user_settings = garmin.garth.connectapi("/userprofile-service/usersettings")
+        if user_settings and isinstance(user_settings, dict) and "userData" in user_settings:
+            garmin.unit_system = user_settings["userData"].get("measurementSystem")
         else:
             garmin.unit_system = None
+        settings_ok = True
     except Exception:
         garmin.unit_system = None
+
+    if not profile_ok and not settings_ok:
+        raise ConnectionError("Token pair did not authenticate against Garmin Connect")
 
     return garmin
 
