@@ -19,8 +19,14 @@ from garmin_to_notion.formatters import (
     gmt_to_local,
 )
 from garmin_to_notion.mappings import ACTIVITY_EMOJIS
+from garmin_to_notion.notion_helpers import fetch_all_pages, get_prop
 
 logger = logging.getLogger(__name__)
+
+# Fetch recent-first in small batches instead of one big historical pull.
+# Once a whole batch is already in Notion (by Garmin ID), we stop paging
+# further back -- everything older is assumed already synced.
+PAGE_SIZE = 50
 
 
 def _build_properties(activity: dict, settings: Settings) -> dict:
@@ -110,52 +116,47 @@ def _get_icon_emoji(activity: dict) -> str:
     return ACTIVITY_EMOJIS.get(activity_subtype, ACTIVITY_EMOJIS["Other"])
 
 
-def _activity_exists(
-    notion: NotionClient,
-    database_id: str,
+def _find_existing(
+    by_garmin_id: dict[int, dict],
+    legacy_pages: list[dict],
     garmin_id: int | None,
     activity_date: datetime,
     activity_type: str,
     activity_name: str,
 ) -> dict | None:
-    """Check if an activity already exists in the Notion database.
+    """Find a matching existing Notion page from a preloaded snapshot.
 
-    Primary lookup: by Garmin ID (unique). Fallback: date + type + name.
+    Primary lookup: by Garmin ID (unique, unambiguous). Fallback: date + type
+    + name, scanned only against legacy entries recorded before Garmin ID
+    tracking was added. Matching is always per-activity, never per-day, so a
+    batch boundary landing mid-day can never cause a partially-synced day to
+    look "done" to a later run.
     """
-    if garmin_id:
-        query = notion.databases.query(
-            database_id=database_id,
-            filter={"property": "Garmin ID", "number": {"equals": garmin_id}},
-        )
-        if query["results"]:
-            return query["results"][0]
+    if garmin_id and garmin_id in by_garmin_id:
+        return by_garmin_id[garmin_id]
 
-    # Fallback for legacy entries without Garmin ID
     lookup_type = (
         "Stretching" if "stretch" in activity_name.lower() else activity_type
     )
     lookup_min = activity_date - timedelta(minutes=5)
     lookup_max = activity_date + timedelta(minutes=5)
 
-    query = notion.databases.query(
-        database_id=database_id,
-        filter={
-            "and": [
-                {
-                    "property": "Date",
-                    "date": {"on_or_after": lookup_min.isoformat()},
-                },
-                {
-                    "property": "Date",
-                    "date": {"on_or_before": lookup_max.isoformat()},
-                },
-                {"property": "Type", "select": {"equals": lookup_type}},
-                {"property": "Name", "title": {"equals": activity_name}},
-            ]
-        },
-    )
-    results = query["results"]
-    return results[0] if results else None
+    for page in legacy_pages:
+        props = page["properties"]
+        if get_prop(props, "Type", "select") != lookup_type:
+            continue
+        if get_prop(props, "Name", "title") != activity_name:
+            continue
+        page_date_str = get_prop(props, "Date", "date")
+        if not page_date_str:
+            continue
+        try:
+            page_date = datetime.fromisoformat(page_date_str)
+        except ValueError:
+            continue
+        if lookup_min <= page_date <= lookup_max:
+            return page
+    return None
 
 
 def _activity_needs_update(
@@ -200,47 +201,89 @@ def sync_activities(
     notion: NotionClient,
     settings: Settings,
 ) -> None:
-    """Sync all Garmin activities to the Notion Activities database."""
-    activities = call_with_retry(garmin.get_activities, 0, settings.fetch_limit)
-    logger.info("Fetched %d activities from Garmin", len(activities))
+    """Sync Garmin activities to the Notion Activities database.
+
+    Fetches from Garmin in small pages, most recent first, checking each
+    activity against a single preloaded snapshot of what's already in
+    Notion. Stops paging further back once an entire page is already known,
+    since everything older is assumed already synced -- avoiding a full
+    historical re-fetch (and a Notion query per activity) on every run.
+    """
+    logger.info("Fetching existing activities from Notion...")
+    existing_pages = fetch_all_pages(notion, settings.activities_db_id)
+    by_garmin_id: dict[int, dict] = {}
+    legacy_pages: list[dict] = []
+    for page in existing_pages:
+        garmin_id = get_prop(page["properties"], "Garmin ID", "number")
+        if garmin_id:
+            by_garmin_id[garmin_id] = page
+        else:
+            legacy_pages.append(page)
+    known_ids = set(by_garmin_id.keys())
+    logger.info("Found %d existing activities in Notion", len(existing_pages))
 
     created, updated, skipped = 0, 0, 0
+    start = 0
 
-    for activity in activities:
-        activity_name = activity.get("activityName", "Unnamed Activity")
-        activity_type, _ = format_activity_type(
-            activity.get("activityType", {}).get("typeKey", "Unknown"),
-            activity_name,
-        )
-        activity_date = gmt_to_local(activity.get("startTimeGMT"), settings.timezone)
-        garmin_id = activity.get("activityId")
+    while start < settings.fetch_limit:
+        page_limit = min(PAGE_SIZE, settings.fetch_limit - start)
+        batch = call_with_retry(garmin.get_activities, start, page_limit)
+        if not batch:
+            break
 
-        existing = _activity_exists(
-            notion, settings.activities_db_id,
-            garmin_id, activity_date, activity_type, activity_name,
-        )
+        batch_all_known = True
 
-        if existing:
-            if _activity_needs_update(existing, activity, settings):
+        for activity in batch:
+            activity_name = activity.get("activityName", "Unnamed Activity")
+            activity_type, _ = format_activity_type(
+                activity.get("activityType", {}).get("typeKey", "Unknown"),
+                activity_name,
+            )
+            activity_date = gmt_to_local(activity.get("startTimeGMT"), settings.timezone)
+            garmin_id = activity.get("activityId")
+
+            if garmin_id not in known_ids:
+                batch_all_known = False
+
+            existing = _find_existing(
+                by_garmin_id, legacy_pages,
+                garmin_id, activity_date, activity_type, activity_name,
+            )
+
+            if existing:
+                if _activity_needs_update(existing, activity, settings):
+                    props = _build_properties(activity, settings)
+                    emoji = _get_icon_emoji(activity)
+                    notion.pages.update(
+                        page_id=existing["id"],
+                        properties=props,
+                        icon={"emoji": emoji},
+                    )
+                    updated += 1
+                else:
+                    skipped += 1
+            else:
                 props = _build_properties(activity, settings)
                 emoji = _get_icon_emoji(activity)
-                notion.pages.update(
-                    page_id=existing["id"],
+                created_page = notion.pages.create(
+                    parent={"database_id": settings.activities_db_id},
                     properties=props,
                     icon={"emoji": emoji},
                 )
-                updated += 1
-            else:
-                skipped += 1
-        else:
-            props = _build_properties(activity, settings)
-            emoji = _get_icon_emoji(activity)
-            notion.pages.create(
-                parent={"database_id": settings.activities_db_id},
-                properties=props,
-                icon={"emoji": emoji},
+                created += 1
+                if garmin_id:
+                    by_garmin_id[garmin_id] = created_page
+
+        if len(batch) < page_limit:
+            break  # Reached the end of Garmin's activity history
+
+        if batch_all_known:
+            logger.info(
+                "Batch at offset %d already fully synced, stopping early", start
             )
-            created += 1
+            break
+
+        start += page_limit
 
     logger.info(
         "Activities sync complete: %d created, %d updated, %d unchanged",
