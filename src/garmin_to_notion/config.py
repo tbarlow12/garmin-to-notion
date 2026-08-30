@@ -26,6 +26,7 @@ class Settings:
     timezone: ZoneInfo
     fetch_limit: int
     days_back: int
+    sync_sleep: bool
 
     @property
     def has_all_db_ids(self) -> bool:
@@ -87,4 +88,5 @@ def load_settings(require_garmin: bool = True) -> Settings:
         timezone=timezone,
         fetch_limit=int(os.getenv("GARMIN_ACTIVITIES_FETCH_LIMIT", "1000")),
         days_back=int(os.getenv("GARMIN_DAYS_BACK", "30")),
+        sync_sleep=os.getenv("SYNC_SLEEP", "true").lower() not in ("false", "0", "no"),
     )

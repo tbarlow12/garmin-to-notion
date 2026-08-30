@@ -112,6 +112,9 @@ def main() -> None:
     commands = list(sync_map.keys()) if args.command == "all" else [args.command]
 
     for cmd in commands:
+        if cmd == "sleep" and not settings.sync_sleep:
+            logger.info("Skipping sleep sync (disabled via SYNC_SLEEP)")
+            continue
         if not db_check.get(cmd):
             logger.info("Skipping %s (no database ID configured)", cmd)
             continue

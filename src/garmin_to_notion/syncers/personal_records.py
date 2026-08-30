@@ -7,6 +7,7 @@ import logging
 from garminconnect import Garmin as GarminClient
 from notion_client import Client as NotionClient
 
+from garmin_to_notion.clients import call_with_retry
 from garmin_to_notion.config import Settings
 from garmin_to_notion.formatters import format_garmin_record_value, gmt_to_local
 from garmin_to_notion.mappings import (
@@ -164,7 +165,7 @@ def sync_personal_records(
         logger.info("No PR database configured, skipping")
         return
 
-    records = garmin.get_personal_record()
+    records = call_with_retry(garmin.get_personal_record)
     filtered = [r for r in records if r.get("typeId") != 16]
     logger.info("Fetched %d personal records from Garmin", len(filtered))
 

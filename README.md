@@ -64,6 +64,7 @@ Go to **Settings → Secrets and variables → Actions → Variables** and add:
 | `TIMEZONE` | `UTC` | Your IANA timezone (e.g. `America/Sao_Paulo`, `Europe/London`) |
 | `GARMIN_DAYS_BACK` | `30` | Days of sleep/steps history to sync |
 | `GARMIN_ACTIVITIES_FETCH_LIMIT` | `1000` | Max activities to fetch per sync |
+| `SYNC_SLEEP` | `true` | Set to `false` to skip Garmin sleep sync entirely |
 
 ### Step 6: Run!
 
@@ -120,6 +121,7 @@ Activities, Personal Records, Daily Steps, and Sleep are synced independently fr
 | `TIMEZONE` | `UTC` | IANA timezone for activity timestamps |
 | `GARMIN_DAYS_BACK` | `30` | Days of sleep/steps history to sync |
 | `GARMIN_ACTIVITIES_FETCH_LIMIT` | `1000` | Max activities per sync |
+| `SYNC_SLEEP` | `true` | Set to `false` to skip Garmin sleep sync entirely |
 
 ### Database IDs (optional — auto-discovered by default)
 

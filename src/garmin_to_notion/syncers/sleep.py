@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from garminconnect import Garmin as GarminClient
+from garminconnect import GarminConnectTooManyRequestsError
 from notion_client import Client as NotionClient
 
+from garmin_to_notion.clients import call_with_retry
 from garmin_to_notion.config import Settings
 from garmin_to_notion.formatters import format_duration
 from garmin_to_notion.notion_helpers import fetch_all_pages, get_prop
 
 logger = logging.getLogger(__name__)
+
+# Score repair hits Garmin once per stale entry; keep it small and paced so a
+# large backlog of missing scores doesn't trip Garmin's rate limiting.
+MAX_REPAIR_ATTEMPTS = 15
+REPAIR_DELAY_SECONDS = 0.5
 
 
 def _compute_sleep_score(
@@ -89,9 +97,14 @@ def _get_sleep_range(
             skipped += 1
             continue
         try:
-            data = garmin.get_sleep_data(date_str)
+            data = call_with_retry(garmin.get_sleep_data, date_str)
             if data and data.get("dailySleepDTO"):
                 results.append(data)
+        except GarminConnectTooManyRequestsError:
+            logger.warning(
+                "Garmin rate limit hit fetching sleep data, stopping early"
+            )
+            break
         except Exception:
             logger.debug("No sleep data for %s", date_str)
         if (i + 1) % 100 == 0:
@@ -222,20 +235,33 @@ def sync_sleep(
         )
         created += 1
 
-    # Repair entries with missing/zero scores
+    # Repair entries with missing/zero scores, most recent first, capped and
+    # paced to avoid hammering Garmin's rate limits.
+    stale_dates = sorted(
+        (
+            date_str
+            for date_str, page in existing_map.items()
+            if not (get_prop(page["properties"], "Score", "number") or 0) > 0
+        ),
+        reverse=True,
+    )[:MAX_REPAIR_ATTEMPTS]
+
     repaired = 0
-    for date_str, page in existing_map.items():
-        props = page["properties"]
-        current_score = get_prop(props, "Score", "number")
-        if current_score and current_score > 0:
-            continue
+    for date_str in stale_dates:
+        page = existing_map[date_str]
 
         # Fetch fresh data from Garmin to recompute score
         try:
-            data = garmin.get_sleep_data(date_str)
-            if not data or not data.get("dailySleepDTO"):
-                continue
+            data = call_with_retry(garmin.get_sleep_data, date_str)
+        except GarminConnectTooManyRequestsError:
+            logger.warning(
+                "Garmin rate limit hit during score repair, stopping early"
+            )
+            break
         except Exception:
+            continue
+
+        if not data or not data.get("dailySleepDTO"):
             continue
 
         new_props = _build_properties(data, settings)
@@ -249,6 +275,8 @@ def sync_sleep(
                 properties={"Score": {"number": new_score}},
             )
             repaired += 1
+
+        time.sleep(REPAIR_DELAY_SECONDS)
 
     logger.info(
         "Sleep sync complete: %d created, %d already existed, %d scores repaired",
