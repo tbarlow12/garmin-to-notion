@@ -53,5 +53,6 @@ jobs:
           TIMEZONE: ${{ vars.TIMEZONE || 'UTC' }}
           GARMIN_DAYS_BACK: ${{ vars.GARMIN_DAYS_BACK || '30' }}
           GARMIN_ACTIVITIES_FETCH_LIMIT: ${{ vars.GARMIN_ACTIVITIES_FETCH_LIMIT || '1000' }}
+          SYNC_SLEEP: ${{ vars.SYNC_SLEEP || 'true' }}
           PYTHONPATH: src
         run: python -m garmin_to_notion all
