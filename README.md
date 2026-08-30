@@ -2,7 +2,7 @@
 
 Sync your Garmin fitness data to beautiful Notion databases — activities, personal records, steps, sleep, workouts, and monthly summaries. Fully automated via GitHub Actions, 3 times a day.
 
-![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue)
+![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Sync: GitHub Actions](https://img.shields.io/badge/sync-GitHub%20Actions-purple)
 
@@ -54,6 +54,18 @@ Go to your fork's **Settings → Secrets and variables → Actions → Secrets**
 | `GARMIN_EMAIL` | Your Garmin Connect email |
 | `GARMIN_PASSWORD` | Your Garmin Connect password |
 | `NOTION_TOKEN` | Your Notion integration token |
+
+**If your Garmin account has MFA/2FA enabled**, email/password alone won't
+work in CI — GitHub Actions can't answer an MFA prompt. Instead:
+
+1. Locally, run `python scripts/generate_token.py` (installs `garminconnect`
+   first if needed) and follow the prompts, including your MFA code.
+2. Add the printed value as a `GARMIN_TOKENS` secret (same Secrets page as
+   above).
+
+The workflow refreshes this token automatically on every run; you shouldn't
+need to repeat this unless Garmin invalidates the session (e.g. a changed
+password), in which case just re-run the script and update the secret.
 
 ### Step 5: Set Variables (optional)
 
