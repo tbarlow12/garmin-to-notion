@@ -111,6 +111,13 @@ def main() -> None:
 
     commands = list(sync_map.keys()) if args.command == "all" else [args.command]
 
+    # These require a live Garmin connection; workouts/summary only touch
+    # Notion. If every one of these actually attempted this run fails, the
+    # Garmin token itself isn't working -- fail the run instead of quietly
+    # succeeding with no new Garmin data.
+    garmin_dependent = {"activities", "records", "steps", "sleep"}
+    attempted_garmin, failed_garmin = 0, 0
+
     for cmd in commands:
         if cmd == "sleep" and not settings.sync_sleep:
             logger.info("Skipping sleep sync (disabled via SYNC_SLEEP)")
@@ -118,13 +125,25 @@ def main() -> None:
         if not db_check.get(cmd):
             logger.info("Skipping %s (no database ID configured)", cmd)
             continue
+        if cmd in garmin_dependent:
+            attempted_garmin += 1
         try:
             logger.info("Starting %s sync...", cmd)
             sync_map[cmd]()
         except Exception as e:
             logger.error("Error during %s sync: %s", cmd, e, exc_info=args.verbose)
+            if cmd in garmin_dependent:
+                failed_garmin += 1
             if args.command != "all":
                 sys.exit(1)
+
+    if attempted_garmin and failed_garmin == attempted_garmin:
+        logger.error(
+            "All %d Garmin-dependent syncs failed -- Garmin authentication or "
+            "connectivity is not working, failing the run",
+            attempted_garmin,
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
