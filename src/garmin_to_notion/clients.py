@@ -170,6 +170,23 @@ def init_clients(settings: Settings) -> Clients:
                     raise SystemExit(1) from e
 
 
+def call_with_retry(func, *args, max_retries: int = 3, base_delay: float = 5.0, **kwargs):
+    """Call a Garmin API function, retrying on transient 429 rate-limit errors."""
+    for attempt in range(max_retries + 1):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries:
+                wait = base_delay * (2 ** attempt)
+                logger.warning(
+                    "Garmin rate limited, retrying in %.0fs (attempt %d/%d)...",
+                    wait, attempt + 1, max_retries,
+                )
+                time.sleep(wait)
+            else:
+                raise
+
+
 def init_notion_only(settings: Settings) -> NotionClient:
     """Initialize only the Notion client (for tools that don't need Garmin)."""
     return NotionClient(auth=settings.notion_token)

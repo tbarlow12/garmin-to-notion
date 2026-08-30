@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from garminconnect import Garmin as GarminClient
 from notion_client import Client as NotionClient
 
+from garmin_to_notion.clients import call_with_retry
 from garmin_to_notion.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,9 @@ def _get_steps_range(garmin: GarminClient, days_back: int, tz: ZoneInfo) -> list
     """Fetch step counts for the last *days_back* days (excluding today)."""
     end_date = datetime.now(tz=tz).date() - timedelta(days=1)
     start_date = end_date - timedelta(days=days_back - 1)
-    return garmin.get_daily_steps(start_date.isoformat(), end_date.isoformat())
+    return call_with_retry(
+        garmin.get_daily_steps, start_date.isoformat(), end_date.isoformat()
+    )
 
 
 def _steps_exist(

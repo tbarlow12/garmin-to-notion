@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from garminconnect import Garmin as GarminClient
+from garminconnect import GarminConnectTooManyRequestsError
 from notion_client import Client as NotionClient
-from requests.exceptions import HTTPError
 
+from garmin_to_notion.clients import call_with_retry
 from garmin_to_notion.config import Settings
 from garmin_to_notion.formatters import format_duration
 from garmin_to_notion.notion_helpers import fetch_all_pages, get_prop
@@ -96,9 +97,14 @@ def _get_sleep_range(
             skipped += 1
             continue
         try:
-            data = garmin.get_sleep_data(date_str)
+            data = call_with_retry(garmin.get_sleep_data, date_str)
             if data and data.get("dailySleepDTO"):
                 results.append(data)
+        except GarminConnectTooManyRequestsError:
+            logger.warning(
+                "Garmin rate limit hit fetching sleep data, stopping early"
+            )
+            break
         except Exception:
             logger.debug("No sleep data for %s", date_str)
         if (i + 1) % 100 == 0:
@@ -246,14 +252,12 @@ def sync_sleep(
 
         # Fetch fresh data from Garmin to recompute score
         try:
-            data = garmin.get_sleep_data(date_str)
-        except HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == 429:
-                logger.warning(
-                    "Garmin rate limit hit during score repair, stopping early"
-                )
-                break
-            continue
+            data = call_with_retry(garmin.get_sleep_data, date_str)
+        except GarminConnectTooManyRequestsError:
+            logger.warning(
+                "Garmin rate limit hit during score repair, stopping early"
+            )
+            break
         except Exception:
             continue
 

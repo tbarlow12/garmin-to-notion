@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from garminconnect import Garmin as GarminClient
 from notion_client import Client as NotionClient
 
+from garmin_to_notion.clients import call_with_retry
 from garmin_to_notion.config import Settings
 from garmin_to_notion.formatters import (
     format_activity_type,
@@ -200,7 +201,7 @@ def sync_activities(
     settings: Settings,
 ) -> None:
     """Sync all Garmin activities to the Notion Activities database."""
-    activities = garmin.get_activities(0, settings.fetch_limit)
+    activities = call_with_retry(garmin.get_activities, 0, settings.fetch_limit)
     logger.info("Fetched %d activities from Garmin", len(activities))
 
     created, updated, skipped = 0, 0, 0
