@@ -78,6 +78,43 @@ Go to **Settings → Secrets and variables → Actions → Variables** and add:
 | `GARMIN_ACTIVITIES_FETCH_LIMIT` | `1000` | Max activities to fetch per sync |
 | `SYNC_SLEEP` | `true` | Set to `false` to skip Garmin sleep sync entirely |
 
+### Optional: Fitbit sleep (Google Health API)
+
+If you sleep in a Fitbit and wear Garmin during the day, the sync can also pull
+Fitbit sleep into the same Sleep database. The legacy Fitbit Web API was shut
+off on 2026-11-02, so this uses its replacement, the Google Health API.
+
+1. **Link your Fitbit to Google Health** in the Google Health mobile app (the
+   API returns `ACCOUNT_NOT_LINKED` otherwise).
+2. **Create a Google Cloud project** and enable the
+   [Google Health API](https://console.developers.google.com/apis/library/health.googleapis.com).
+3. **Configure the OAuth consent screen**: User type *External*, add yourself
+   as a test user, and add the scopes
+   `.../auth/googlehealth.sleep.readonly` and (for resting HR)
+   `.../auth/googlehealth.health_metrics_and_measurements.readonly`.
+   Then **publish the app** (Audience → Publish app). In *Testing* mode Google
+   expires refresh tokens after 7 days and the sync would break weekly; a
+   published but unverified app is fine for personal use.
+4. **Create an OAuth client** (Credentials → OAuth client ID → *Web
+   application*) with authorized redirect URI `https://www.google.com`.
+5. Locally run `PYTHONPATH=src python scripts/generate_google_health_token.py`,
+   open the printed URL, approve, and paste back the URL you land on.
+6. Add the secrets `GOOGLE_HEALTH_CLIENT_ID`, `GOOGLE_HEALTH_CLIENT_SECRET`
+   and `GOOGLE_HEALTH_REFRESH_TOKEN`.
+
+**How Fitbit and Garmin nights are merged:** each Sleep row is one night,
+dated by the local wake-up date (the same convention Garmin uses). Fitbit
+sleep runs first, so on a night both devices recorded the Fitbit night is
+kept and the Garmin sync skips that date. Existing rows are never
+overwritten. Naps are ignored, and when Fitbit logs several sessions ending
+on the same date the main sleep is used. Fitbit's own Sleep Score isn't
+exposed by the API, so the `Score` column uses the same computed score as the
+Garmin rows.
+
+Run it on its own with `PYTHONPATH=src python -m garmin_to_notion fitbit-sleep`.
+Set the `FITBIT_DAYS_BACK` variable to backfill further than
+`GARMIN_DAYS_BACK`.
+
 ### Step 6: Run!
 
 Go to the **Actions** tab → **Garmin to Notion Sync** → **Run workflow**.

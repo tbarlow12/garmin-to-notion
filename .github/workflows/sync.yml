@@ -13,6 +13,9 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write  # lets the keepalive step re-enable this workflow
     steps:
       - uses: actions/checkout@v6
 
@@ -38,6 +41,16 @@ jobs:
           restore-keys: |
             garmin-tokens-
 
+      # Restore/save are split so the (possibly rotated) Google refresh token
+      # is saved even when a later sync step fails the job.
+      - name: Restore Google Health tokens
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.google_health_tokens
+          key: google-health-tokens-${{ github.run_id }}
+          restore-keys: |
+            google-health-tokens-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -54,5 +67,26 @@ jobs:
           GARMIN_DAYS_BACK: ${{ vars.GARMIN_DAYS_BACK || '30' }}
           GARMIN_ACTIVITIES_FETCH_LIMIT: ${{ vars.GARMIN_ACTIVITIES_FETCH_LIMIT || '1000' }}
           SYNC_SLEEP: ${{ vars.SYNC_SLEEP || 'true' }}
+          GOOGLE_HEALTH_CLIENT_ID: ${{ secrets.GOOGLE_HEALTH_CLIENT_ID }}
+          GOOGLE_HEALTH_CLIENT_SECRET: ${{ secrets.GOOGLE_HEALTH_CLIENT_SECRET }}
+          GOOGLE_HEALTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_HEALTH_REFRESH_TOKEN }}
+          GOOGLE_HEALTH_TOKENSTORE: ~/.google_health_tokens
+          FITBIT_DAYS_BACK: ${{ vars.FITBIT_DAYS_BACK || '' }}
           PYTHONPATH: src
         run: python -m garmin_to_notion all
+
+      - name: Save Google Health tokens
+        if: always()  # warns (doesn't fail) when Fitbit isn't configured
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.google_health_tokens
+          key: google-health-tokens-${{ github.run_id }}
+
+      # GitHub disables scheduled workflows after 60 days without repo
+      # activity. Re-enabling an active workflow resets that timer, so every
+      # run keeps the schedule alive without a third-party action.
+      - name: Keep schedule alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/sync.yml/enable"
