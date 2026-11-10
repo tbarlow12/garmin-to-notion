@@ -5,7 +5,8 @@ Usage:
     python -m garmin_to_notion activities   # Sync only activities
     python -m garmin_to_notion records      # Sync only personal records
     python -m garmin_to_notion steps        # Sync only daily steps
-    python -m garmin_to_notion sleep        # Sync only sleep data
+    python -m garmin_to_notion sleep        # Sync only Garmin sleep data
+    python -m garmin_to_notion fitbit-sleep # Sync only Fitbit sleep (Google Health API)
     python -m garmin_to_notion workouts     # Sync only workouts
     python -m garmin_to_notion summary      # Sync only summary aggregations
     python -m garmin_to_notion cleanup      # Deduplicate workouts (dry run)
@@ -30,7 +31,10 @@ def main() -> None:
         "command",
         nargs="?",
         default="all",
-        choices=["all", "activities", "records", "steps", "sleep", "workouts", "summary", "cleanup"],
+        choices=[
+            "all", "activities", "records", "steps", "sleep", "fitbit-sleep",
+            "workouts", "summary", "cleanup",
+        ],
         help="Which sync to run (default: all)",
     )
     parser.add_argument(
@@ -48,8 +52,8 @@ def main() -> None:
     setup_logging(level=logging.DEBUG if args.verbose else logging.INFO)
     logger = logging.getLogger(__name__)
 
-    # Cleanup and summary only need Notion, not Garmin
-    require_garmin = args.command not in ("cleanup", "summary")
+    # Cleanup, summary and Fitbit sleep only need Notion, not Garmin
+    require_garmin = args.command not in ("cleanup", "summary", "fitbit-sleep")
     settings = load_settings(require_garmin=require_garmin)
 
     # Auto-discover database IDs from Notion if any are missing
@@ -79,6 +83,34 @@ def main() -> None:
         notion = init_notion_only(settings)
         sync_summary(notion, settings)
         return
+
+    # Fitbit sleep runs before Garmin auth so it keeps working even when the
+    # Garmin login fails, and before the Garmin sleep sync so that on nights
+    # both devices recorded, the Fitbit night is the one written to Notion.
+    fitbit_failed = False
+    if args.command in ("all", "fitbit-sleep"):
+        if not settings.has_fitbit:
+            msg = "Skipping Fitbit sleep (GOOGLE_HEALTH_* credentials not set)"
+            if args.command == "fitbit-sleep":
+                logger.error(msg)
+                sys.exit(1)
+            logger.info(msg)
+        elif not settings.sleep_db_id:
+            logger.info("Skipping fitbit-sleep (no database ID configured)")
+        else:
+            from garmin_to_notion.clients import init_notion_only
+            from garmin_to_notion.syncers.fitbit_sleep import sync_fitbit_sleep
+
+            try:
+                logger.info("Starting fitbit-sleep sync...")
+                sync_fitbit_sleep(init_notion_only(settings), settings)
+            except Exception as e:
+                logger.error("Error during fitbit-sleep sync: %s", e, exc_info=args.verbose)
+                fitbit_failed = True
+                if args.command == "fitbit-sleep":
+                    sys.exit(1)
+        if args.command == "fitbit-sleep":
+            return
 
     from garmin_to_notion.clients import init_clients
     from garmin_to_notion.syncers.activities import sync_activities
@@ -143,6 +175,11 @@ def main() -> None:
             "connectivity is not working, failing the run",
             attempted_garmin,
         )
+        sys.exit(1)
+
+    if fitbit_failed:
+        # Surface a broken Google Health token as a failed run so it gets
+        # noticed, but only after the Garmin syncs have had their chance.
         sys.exit(1)
 
 
