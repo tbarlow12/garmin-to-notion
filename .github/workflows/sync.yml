@@ -84,7 +84,8 @@ jobs:
 
       # GitHub disables scheduled workflows after 60 days without repo
       # activity. Re-enabling an active workflow resets that timer, so every
-      # run keeps the schedule alive without a third-party action.
+      # run keeps the schedule alive without a third-party action (the
+      # gautamkrishnar/keepalive-workflow action is now blocked by GitHub).
       - name: Keep schedule alive
         if: always()
         env:
