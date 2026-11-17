@@ -13,6 +13,9 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write  # lets the keepalive step re-enable this workflow
     steps:
       - uses: actions/checkout@v6
 
@@ -56,3 +59,13 @@ jobs:
           SYNC_SLEEP: ${{ vars.SYNC_SLEEP || 'true' }}
           PYTHONPATH: src
         run: python -m garmin_to_notion all
+
+      # GitHub disables scheduled workflows after 60 days without repo
+      # activity. Re-enabling an active workflow resets that timer, so every
+      # run keeps the schedule alive without a third-party action (the
+      # gautamkrishnar/keepalive-workflow action is now blocked by GitHub).
+      - name: Keep schedule alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/sync.yml/enable"
