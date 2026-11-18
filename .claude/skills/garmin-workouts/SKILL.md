@@ -34,10 +34,11 @@ environment. Don't try password login: it hits MFA and Garmin rate limits.
 | Read one as a spec | `$W show "Engine Room"` (id, exact name or unique fragment; `--json` for raw) |
 | Save to a file for editing | `$W pull "Engine Room"` (writes `workouts/<slug>.yaml`; `--all`, `--dir DIR`) |
 | Check a spec offline | `$W validate FILE` |
-| Create or update | `$W push FILE [--schedule 2026-11-20]` (`--dry-run` prints JSON only) |
+| Create or update | `$W push FILE [--schedule 2026-11-20] [--weekly ...]` (`--dry-run` prints JSON only) |
 | Put on the calendar | `$W schedule REF|FILE 2026-11-20 [more dates]` |
+| Recurring | `$W schedule REF --weekly mon,wed,fri --weeks 8 [--start 2026-11-23]` (start defaults to today, weeks to 4) |
 | See the calendar | `$W calendar [--from DATE --to DATE]` (default: next 14 days; shows schedule ids) |
-| Take off the calendar | `$W unschedule SCHEDULE_ID --yes` |
+| Take off the calendar | `$W unschedule SCHEDULE_ID --yes`, or a whole series: `$W unschedule --workout REF [--from DATE --to DATE] --yes` |
 | Delete a workout | `$W delete REF --yes` |
 | Send to the watch now | `$W send REF` |
 | Find exercise keys | `$W exercises "goblet squat"` |
@@ -63,6 +64,11 @@ Rules that matter:
   written back into the file. Keep the `id:` line.
 - Push replaces the whole workout, so always push a complete spec (that is
   why you pull first).
+- Garmin has no recurring schedule for a single workout. `--weekly` creates one
+  calendar entry per day, and skips days the workout is already on, so
+  re-running is safe. Entries point at the workout, so editing it updates
+  every scheduled day. To change a series' days, unschedule it with
+  `--workout` and schedule again.
 - New workouts reach the watch once they're on the calendar (`--schedule`) or
   sent with `$W send`, followed by a watch sync.
 - Deleting a workout or removing calendar entries can't be undone: confirm

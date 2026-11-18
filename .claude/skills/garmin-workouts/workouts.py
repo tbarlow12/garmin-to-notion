@@ -14,9 +14,9 @@ Usage (from the repo root; needs `pip install -r requirements.txt`):
     python .claude/skills/garmin-workouts/workouts.py push FILE... [--dry-run] [--schedule YYYY-MM-DD]
     python .claude/skills/garmin-workouts/workouts.py validate FILE...
     python .claude/skills/garmin-workouts/workouts.py delete ID|NAME... [--yes]
-    python .claude/skills/garmin-workouts/workouts.py schedule ID|NAME|FILE YYYY-MM-DD...
+    python .claude/skills/garmin-workouts/workouts.py schedule ID|NAME|FILE [YYYY-MM-DD...] [--weekly mon,wed,fri --weeks 8 --start DATE]
     python .claude/skills/garmin-workouts/workouts.py calendar [--from DATE] [--to DATE]
-    python .claude/skills/garmin-workouts/workouts.py unschedule SCHEDULE_ID... [--yes]
+    python .claude/skills/garmin-workouts/workouts.py unschedule SCHEDULE_ID... | --workout REF [--from --to] [--yes]
     python .claude/skills/garmin-workouts/workouts.py send ID|NAME   # push to the watch now
     python .claude/skills/garmin-workouts/workouts.py exercises TERM
 
@@ -237,9 +237,7 @@ def cmd_push(args) -> None:
             print(f"Created   {name} (id {workout_id})")
         if str(load_spec(path).get("id")) != str(workout_id):
             write_id(path, workout_id)
-        for date in args.schedule or []:
-            garmin.schedule_workout(workout_id, date)
-            print(f"Scheduled {name} on {date}")
+        schedule_on(garmin, workout_id, name, expand_dates(args))
 
 
 def cmd_delete(args) -> None:
@@ -254,17 +252,67 @@ def cmd_delete(args) -> None:
         print(f"Deleted {w['workoutId']}  {w['workoutName']}")
 
 
+_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def expand_dates(args) -> list[str]:
+    """Explicit dates plus any --weekly days over --weeks weeks from --start."""
+    dates = {dt.date.fromisoformat(d) for d in (getattr(args, "dates", None) or [])}
+    dates |= {dt.date.fromisoformat(d) for d in (getattr(args, "schedule", None) or [])}
+    if getattr(args, "weekly", None):
+        try:
+            days = {_DAYS.index(d.strip().lower()[:3]) for d in args.weekly.split(",") if d.strip()}
+        except ValueError:
+            sys.exit(f"--weekly takes day names like mon,wed,fri (got {args.weekly!r})")
+        start = dt.date.fromisoformat(args.start) if args.start else dt.date.today()
+        for i in range(args.weeks * 7):
+            day = start + dt.timedelta(days=i)
+            if day.weekday() in days:
+                dates.add(day)
+    return [d.isoformat() for d in sorted(dates)]
+
+
+def scheduled(garmin, start: dt.date, end: dt.date) -> list[dict[str, Any]]:
+    """Calendar entries for workouts between two dates (inclusive)."""
+    # Month views include the edges of neighbouring months, so dedupe by id.
+    items: dict[Any, dict[str, Any]] = {}
+    for y, m in _months(start, end):
+        data = garmin.get_scheduled_workouts(y, m) or {}
+        for it in data.get("calendarItems") or []:
+            if it.get("itemType") == "workout" and start.isoformat() <= (it.get("date") or "") <= end.isoformat():
+                items[it.get("id")] = it
+    return sorted(items.values(), key=lambda i: i["date"])
+
+
+def schedule_on(garmin, workout_id: int, name: str, dates: list[str]) -> None:
+    """Schedule a workout on each date, skipping dates it's already on."""
+    if not dates:
+        return
+    taken = {
+        it["date"]
+        for it in scheduled(garmin, dt.date.fromisoformat(dates[0]), dt.date.fromisoformat(dates[-1]))
+        if str(it.get("workoutId")) == str(workout_id)
+    }
+    for date in dates:
+        if date in taken:
+            print(f"Already on {date}: {name}")
+            continue
+        res = garmin.schedule_workout(workout_id, date)
+        sid = (res or {}).get("workoutScheduleId", "?")
+        print(f"Scheduled {name} on {date} (schedule id {sid})")
+
+
 def cmd_schedule(args) -> None:
+    dates = expand_dates(args)
+    if not dates:
+        sys.exit("Give dates (YYYY-MM-DD ...) and/or --weekly mon,wed,fri")
     garmin = login()
     ref = args.ref
     if Path(ref).is_file():
         spec = load_spec(Path(ref))
         ref = str(spec.get("id") or spec["name"])
     w = find_workout(garmin, ref)
-    for date in args.dates:
-        res = garmin.schedule_workout(w["workoutId"], date)
-        sid = (res or {}).get("workoutScheduleId", "?")
-        print(f"Scheduled {w['workoutName']} on {date} (schedule id {sid})")
+    schedule_on(garmin, w["workoutId"], w["workoutName"], dates)
 
 
 def _months(start: dt.date, end: dt.date):
@@ -278,25 +326,32 @@ def cmd_calendar(args) -> None:
     garmin = login()
     start = dt.date.fromisoformat(args.start) if args.start else dt.date.today()
     end = dt.date.fromisoformat(args.end) if args.end else start + dt.timedelta(days=14)
-    items = []
-    for y, m in _months(start, end):
-        data = garmin.get_scheduled_workouts(y, m) or {}
-        for it in data.get("calendarItems") or []:
-            if it.get("itemType") == "workout" and start.isoformat() <= (it.get("date") or "") <= end.isoformat():
-                items.append(it)
-    for it in sorted(items, key=lambda i: i["date"]):
+    items = scheduled(garmin, start, end)
+    for it in items:
         print(f"{it['date']}  schedule {it.get('id')!s:>12}  workout {it.get('workoutId')!s:>12}  {it.get('title')}")
     print(f"{len(items)} scheduled workout(s) {start} to {end}")
 
 
 def cmd_unschedule(args) -> None:
     garmin = login()
-    for sid in args.schedule_ids:
+    entries = [(sid, f"calendar entry {sid}") for sid in args.schedule_ids]
+    if args.workout:
+        w = find_workout(garmin, args.workout)
+        start = dt.date.fromisoformat(args.start) if args.start else dt.date.today()
+        end = dt.date.fromisoformat(args.end) if args.end else start + dt.timedelta(days=365)
+        entries += [
+            (it["id"], f"{it['date']} {it.get('title')} (calendar entry {it['id']})")
+            for it in scheduled(garmin, start, end)
+            if str(it.get("workoutId")) == str(w["workoutId"])
+        ]
+    if not entries:
+        sys.exit("Nothing to unschedule (give schedule ids, or --workout REF [--from --to])")
+    for sid, label in entries:
         if not args.yes:
-            print(f"Would remove calendar entry {sid} (re-run with --yes)")
+            print(f"Would remove {label} (re-run with --yes)")
             continue
         garmin.unschedule_workout(sid)
-        print(f"Removed calendar entry {sid}")
+        print(f"Removed {label}")
 
 
 def cmd_send(args) -> None:
@@ -341,6 +396,9 @@ def main() -> int:
     s.add_argument("files", nargs="+")
     s.add_argument("--dry-run", action="store_true", help="Print the JSON, don't upload")
     s.add_argument("--schedule", action="append", metavar="YYYY-MM-DD")
+    s.add_argument("--weekly", metavar="DAYS", help="Repeat weekly on these days, e.g. mon,wed,fri")
+    s.add_argument("--weeks", type=int, default=4, help="How many weeks for --weekly (default 4)")
+    s.add_argument("--start", metavar="YYYY-MM-DD", help="First day for --weekly (default today)")
     s.set_defaults(func=cmd_push)
 
     s = sub.add_parser("validate", help="Check spec files offline")
@@ -354,7 +412,10 @@ def main() -> int:
 
     s = sub.add_parser("schedule", help="Put a workout on the Garmin calendar")
     s.add_argument("ref")
-    s.add_argument("dates", nargs="+", metavar="YYYY-MM-DD")
+    s.add_argument("dates", nargs="*", metavar="YYYY-MM-DD")
+    s.add_argument("--weekly", metavar="DAYS", help="Repeat weekly on these days, e.g. mon,wed,fri")
+    s.add_argument("--weeks", type=int, default=4, help="How many weeks for --weekly (default 4)")
+    s.add_argument("--start", metavar="YYYY-MM-DD", help="First day for --weekly (default today)")
     s.set_defaults(func=cmd_schedule)
 
     s = sub.add_parser("calendar", help="List scheduled workouts")
@@ -363,7 +424,10 @@ def main() -> int:
     s.set_defaults(func=cmd_calendar)
 
     s = sub.add_parser("unschedule", help="Remove calendar entries (dry run without --yes)")
-    s.add_argument("schedule_ids", nargs="+")
+    s.add_argument("schedule_ids", nargs="*")
+    s.add_argument("--workout", metavar="REF", help="Remove this workout's entries in --from/--to")
+    s.add_argument("--from", dest="start", help="With --workout (default today)")
+    s.add_argument("--to", dest="end", help="With --workout (default a year out)")
     s.add_argument("--yes", action="store_true")
     s.set_defaults(func=cmd_unschedule)
 
