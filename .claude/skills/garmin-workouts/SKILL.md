@@ -10,7 +10,8 @@ Everything lives in this folder:
 - `workouts.py`: the CLI (talks to Garmin Connect through `garminconnect`).
 - `workout_spec.py`: converts the YAML spec format to and from Garmin's workout JSON.
 - `reference.md`: the spec format. Read it before writing or editing a spec.
-- `workouts/`: spec files for workouts kept in the repo (the boot camp circuits).
+- `workouts/`: spec files for Tanner's Garmin workouts (pulled Nov 18 2026; pull again before editing).
+- `exercises.yaml`: the full strength exercise catalog (1,527 exercises by category) for picking `exercise:` keys.
 - `test_workout_spec.py`: offline tests (`python -m pytest .claude/skills/garmin-workouts`).
 
 ## Setup (once per session)

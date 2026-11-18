@@ -1,0 +1,73 @@
+id: 1559417245
+name: Upper Push 1
+sport: multi_sport
+description: Full-body Forge
+segments:
+- sport: strength_training
+  steps:
+  - repeat: 3
+    steps:
+    - exercise: DUMBBELL_BENCH_PRESS
+      reps: 10
+      weight: 60lb
+    - exercise: DUMBBELL_LATERAL_RAISE
+      reps: 10
+      weight: 20lb
+    - exercise: INCLINE_DUMBBELL_BENCH_PRESS
+      reps: 10
+      weight: 40lb
+    - exercise: TRICEP_EXTENSION
+      reps: 10
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: NEUTRAL_GRIP_DUMBBELL_BENCH_PRESS
+      reps: 10
+      weight: 40lb
+    - exercise: DUMBBELL_SHOULDER_PRESS
+      reps: 10
+      weight: 20lb
+    - exercise: CHEST_PRESS_WITH_BAND
+      reps: 10
+      weight: 75lb
+    - exercise: OVERHEAD_DUMBBELL_TRICEPS_EXTENSION
+      reps: 10
+      weight: 40lb
+    - rest: lap
+  - repeat: 2
+    steps:
+    - exercise: KNEELING_AB_WHEEL
+      reps: 10
+    - exercise: PLANK/SIDE_PLANK
+      time: 45s
+      note: Left side
+      extra:
+        endConditionCompare: gt
+    - exercise: PLANK/SIDE_PLANK
+      time: 45s
+      note: Right side
+      extra:
+        endConditionCompare: gt
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      note: Left side
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      note: Right side
+    - exercise: LYING_STRAIGHT_LEG_RAISE
+      reps: 10
+    - exercise: SUPERMAN_FROM_FLOOR
+      reps: 10
+    - rest: 1m
+- sport: yoga
+  steps:
+  - exercise: MOVE/
+    lap: true
+    note: Cool Down Stretch
+- sport: other
+  steps:
+  - type: other
+    lap: true
+    note: Meditation
+    extra:
+      endConditionCompare: gt

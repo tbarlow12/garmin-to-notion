@@ -1,0 +1,73 @@
+id: 1574162892
+name: Upper Pull 1
+sport: multi_sport
+segments:
+- sport: strength_training
+  steps:
+  - repeat: 3
+    steps:
+    - exercise: SINGLE_ARM_NEUTRAL_GRIP_DUMBBELL_ROW
+      reps: 10
+      weight: 70lb
+    - exercise: DUMBBELL_HAMMER_CURL
+      reps: 10
+      weight: 30lb
+    - exercise: RENEGADE_ROW
+      reps: 10
+      weight: 30lb
+    - exercise: BANDED_FACE_PULLS
+      reps: 10
+      weight: 55lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: NEUTRAL_GRIP_ALTERNATING_DUMBBELL_ROW
+      reps: 10
+      weight: 40lb
+      note: Gorilla row
+    - exercise: DUMBBELL_BICEPS_CURL_WITH_STATIC_HOLD
+      reps: 10
+      weight: 30lb
+    - exercise: TRX_INVERTED_ROW
+      reps: 10
+    - exercise: INCLINE_REVERSE_FLYE
+      reps: 10
+      weight: 30lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: CRUNCH/REVERSE_CRUNCH
+      reps: 10
+      note: Gorilla row
+    - exercise: BACK_EXTENSION_WITH_OPPOSITE_ARM_AND_LEG_REACH
+      reps: 10
+      note: Bird Dogs
+    - type: warmup
+      exercise: WARM_UP/
+      lap: true
+      note: Set up for plank
+    - exercise: PLANK/PLANK
+      time: 1m
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      weight: 55lb
+      note: Left side
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      weight: 55lb
+      note: Right side
+  - type: warmup
+    exercise: WARM_UP/
+    reps: 10
+- sport: yoga
+  steps:
+  - exercise: MOVE/
+    lap: true
+    note: Cool Down Stretch
+- sport: other
+  steps:
+  - type: other
+    lap: true
+    note: Meditation
+    extra:
+      endConditionCompare: gt
