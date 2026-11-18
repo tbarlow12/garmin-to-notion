@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+"""Post-workout debrief from Garmin Connect.
+
+    .claude/bin/debrief show [--date DATE] [--json]
+    .claude/bin/debrief progress WORKOUT [--up EX ...] [--down EX ...] [--step LB] [--apply]
+
+`show` finds the day's activities (default: today, in the week.yaml time zone),
+expands multisport sessions into their legs, and prints what the coach needs to
+debrief one session: the plan for the day, start time against the 5:30
+start-by, HR zones, work and rest intervals, strength sets per exercise with
+weights (lb), watch reps when the watch counted any, and day context
+(readiness, resting HR).
+
+`progress` applies the load progression to the next time a workout comes up:
+each exercise in --up goes up one step, each in --down goes down one step.
+It pulls the workout from Garmin first (Tanner edits in the app too), rewrites
+the spec in .claude/skills/garmin-workouts/workouts/, and with --apply pushes it
+back so the watch shows the new weight. Without --apply it only prints the
+changes.
+
+Auth and Garmin helpers come from .claude/bin/garmin-workouts (GARMIN_TOKENS).
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import importlib.machinery
+import importlib.util
+import json
+import sys
+from collections import OrderedDict
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import yaml
+
+HERE = Path(__file__).resolve().parent
+WEEK_FILE = HERE.parent / "skills" / "weekly-review" / "week.yaml"
+SPEC_DIR = HERE.parent / "skills" / "garmin-workouts" / "workouts"
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+GRAMS_PER_LB = 453.59237
+# HR zones the coach treats as "zone 2 work" on Saturday.
+Z2_ZONES = (2,)
+
+
+def _load(name: str, file: str):
+    loader = importlib.machinery.SourceFileLoader(name, str(HERE / file))
+    spec = importlib.util.spec_from_loader(name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+gw = _load("garmin_workouts", "garmin-workouts")
+
+
+def load_week() -> dict[str, Any]:
+    return yaml.safe_load(WEEK_FILE.read_text())
+
+
+def lb(grams: float | None) -> float | None:
+    if not grams:
+        return None
+    return round(grams / GRAMS_PER_LB * 2) / 2
+
+
+def _best_effort(f, default=None):
+    try:
+        return f()
+    except Exception:  # noqa: BLE001
+        return default
+
+
+def _local_time(ts: str | None) -> str | None:
+    return ts[11:16] if ts else None
+
+
+# --- show -------------------------------------------------------------------
+
+
+def planned_for(garmin, week: dict[str, Any], day: dt.date) -> tuple[list[str], str]:
+    cal = [it.get("title") for it in gw.scheduled(garmin, day, day) if it.get("date") == day.isoformat()]
+    if cal:
+        return cal, "garmin calendar"
+    return list(week["days"][DAYS[day.weekday()]].get("workouts") or []), "week.yaml"
+
+
+def planned_steps(garmin, name: str) -> list[dict[str, Any]]:
+    """The planned exercise steps of a Garmin workout, flattened: exercise, reps, weight, rounds."""
+    try:
+        w = garmin.get_workout_by_id(gw.find_workout(garmin, name)["workoutId"])
+    except SystemExit:
+        return []
+    spec = gw.from_garmin(w)
+    out: list[dict[str, Any]] = []
+
+    def walk(steps, rounds=1):
+        for s in steps:
+            if "repeat" in s:
+                walk(s.get("steps") or [], rounds * int(s["repeat"]))
+            elif "exercise" in s:
+                out.append({"exercise": s["exercise"], "reps": s.get("reps"), "time": s.get("time"),
+                            "weight": s.get("weight"), "rounds": rounds})
+
+    for seg in spec.get("segments") or [{"steps": spec.get("steps") or []}]:
+        walk(seg.get("steps") or [])
+    return out
+
+
+def strength_detail(garmin, activity_id) -> dict[str, Any]:
+    data = _best_effort(lambda: garmin.get_activity_exercise_sets(activity_id), {}) or {}
+    exercises: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+    rests: list[int] = []
+    for s in data.get("exerciseSets") or []:
+        if s.get("setType") == "REST":
+            rests.append(round(s.get("duration") or 0))
+            continue
+        if s.get("setType") != "ACTIVE":
+            continue
+        ex = (s.get("exercises") or [{}])[0]
+        key = ex.get("name") or ex.get("category") or "UNKNOWN"
+        row = exercises.setdefault(key, {"sets": []})
+        row["sets"].append({"start": _local_time(s.get("startTime")), "lb": lb(s.get("weight")),
+                            "watch_reps": s.get("repetitionCount") or None,
+                            "seconds": round(s.get("duration") or 0)})
+    for row in exercises.values():
+        reps = [x["watch_reps"] for x in row["sets"]]
+        # Watch reps count only when every set has a believable number.
+        row["watch_reps_usable"] = bool(reps) and all(r and 1 <= r <= 30 for r in reps)
+        weights = [x["lb"] for x in row["sets"] if x["lb"]]
+        row["top_lb"] = max(weights) if weights else None
+    return {"exercises": exercises, "rest_seconds": rests}
+
+
+def activity_detail(garmin, a: dict[str, Any]) -> dict[str, Any]:
+    aid = a["activityId"]
+    full = _best_effort(lambda: garmin.get_activity(aid), {}) or {}
+    s = full.get("summaryDTO") or {}
+    kind = (a.get("activityType") or full.get("activityTypeDTO") or {}).get("typeKey")
+    zones = _best_effort(lambda: garmin.get_activity_hr_in_timezones(aid), []) or []
+    zone_secs = {z["zoneNumber"]: round(z.get("secsInZone") or 0) for z in zones}
+    total = sum(zone_secs.values()) or 1
+    row: dict[str, Any] = {
+        "id": aid,
+        "name": a.get("activityName") or full.get("activityName"),
+        "type": kind,
+        "start": _local_time(a.get("startTimeLocal") or s.get("startTimeLocal")),
+        "minutes": round((s.get("duration") or a.get("duration") or 0) / 60, 1),
+        "avg_hr": s.get("averageHR"),
+        "max_hr": s.get("maxHR"),
+        "hr_zone_minutes": {z: round(v / 60, 1) for z, v in sorted(zone_secs.items())},
+        "hr_zone_pct": {z: round(100 * v / total) for z, v in sorted(zone_secs.items())},
+        "training_load": round(s.get("activityTrainingLoad") or 0),
+        "aerobic_te": s.get("trainingEffect"),
+        "anaerobic_te": s.get("anaerobicTrainingEffect"),
+        "rpe": (s.get("directWorkoutRpe") or 0) / 10 or None,
+        "feel": s.get("directWorkoutFeel"),
+        "body_battery_change": s.get("differenceBodyBattery"),
+        "notes": full.get("description") or a.get("description"),
+    }
+    dist = s.get("distance") or 0
+    if dist:
+        row["miles"] = round(dist / 1609.344, 2)
+    if s.get("averageSpeed") and kind in ("treadmill_running", "walking", "running", "indoor_walking"):
+        row["avg_mph"] = round(s["averageSpeed"] * 2.23694, 1)
+    if s.get("averageStrokeCadence"):
+        row["avg_stroke_rate"] = round(s["averageStrokeCadence"])
+    if s.get("averagePower"):
+        row["avg_watts"] = round(s["averagePower"])
+    if kind == "strength_training":
+        row.update(strength_detail(garmin, aid))
+    else:
+        splits = _best_effort(lambda: garmin.get_activity_splits(aid), {}) or {}
+        row["laps"] = [{"minutes": round((x.get("duration") or 0) / 60, 1), "avg_hr": x.get("averageHR"),
+                        "max_hr": x.get("maxHR")} for x in splits.get("lapDTOs") or []]
+    return row
+
+
+def expand(garmin, acts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Replace each multisport parent with its legs, so lift and cardio are read separately."""
+    out = []
+    for a in acts:
+        if (a.get("activityType") or {}).get("typeKey") != "multi_sport":
+            out.append(a)
+            continue
+        full = _best_effort(lambda: garmin.get_activity(a["activityId"]), {}) or {}
+        kids = (full.get("metadataDTO") or {}).get("childIds") or []
+        legs = [_best_effort(lambda k=k: garmin.get_activity(k)) for k in kids]
+        legs = [leg for leg in legs if leg]
+        if not legs:
+            out.append(a)
+            continue
+        for leg in legs:
+            leg_s = leg.get("summaryDTO") or {}
+            out.append({"activityId": leg["activityId"], "activityName": leg.get("activityName") or a.get("activityName"),
+                        "activityType": leg.get("activityTypeDTO") or {}, "startTimeLocal": leg_s.get("startTimeLocal"),
+                        "duration": leg_s.get("duration"), "parent": a.get("activityName")})
+    return out
+
+
+def show(garmin, week: dict[str, Any], day: dt.date) -> dict[str, Any]:
+    raw = garmin.get_activities_by_date(day.isoformat(), day.isoformat()) or []
+    raw.sort(key=lambda a: a.get("startTimeLocal") or "")
+    acts = [activity_detail(garmin, a) for a in expand(garmin, raw)]
+    plan, plan_source = planned_for(garmin, week, day)
+    start_by = week.get("start_by", "05:30")
+    first = min((a["start"] for a in acts if a["start"]), default=None)
+    readiness = _best_effort(lambda: garmin.get_training_readiness(day.isoformat()), []) or []
+    summary = _best_effort(lambda: garmin.get_user_summary(day.isoformat()), {}) or {}
+    return {
+        "date": day.isoformat(),
+        "day": DAYS[day.weekday()],
+        "focus": week["days"][DAYS[day.weekday()]].get("focus"),
+        "plan": [{"workout": p, "steps": planned_steps(garmin, p)} for p in plan],
+        "plan_source": plan_source,
+        "start_by": start_by,
+        "first_start": first,
+        "minutes_late": _minutes_late(first, start_by),
+        "activities": acts,
+        "synced": bool(acts),
+        "context": {
+            "readiness": (readiness[0] if readiness else {}).get("score"),
+            "readiness_level": (readiness[0] if readiness else {}).get("level"),
+            "resting_hr": summary.get("restingHeartRate"),
+            "body_battery_high": summary.get("bodyBatteryHighestValue"),
+        },
+    }
+
+
+def _minutes_late(first: str | None, start_by: str) -> int | None:
+    if not first:
+        return None
+    f = int(first[:2]) * 60 + int(first[3:])
+    b = int(start_by[:2]) * 60 + int(start_by[3:])
+    return max(0, f - b)
+
+
+def print_show(r: dict[str, Any]) -> None:
+    print(f"# Debrief {r['day'].title()} {r['date']}  ({r['focus']})")
+    print(f"Plan ({r['plan_source']}): " + (", ".join(p["workout"] for p in r["plan"]) or "rest"))
+    if not r["synced"]:
+        print("\nNo activities on Garmin for this day yet (not synced, or no session).")
+        return
+    late = r["minutes_late"]
+    print(f"First start {r['first_start']} (start-by {r['start_by']}"
+          + (f", {late} min late)" if late else ", on time)"))
+    c = r["context"]
+    print(f"Readiness {c['readiness'] or '-'} {c['readiness_level'] or ''}, resting HR {c['resting_hr'] or '-'}\n")
+    for p in r["plan"]:
+        if p["steps"]:
+            print(f"Planned {p['workout']}:")
+            for s in p["steps"]:
+                amt = f"{s['reps']} reps" if s["reps"] else (s["time"] or "")
+                print(f"    {s['exercise']}: {s['rounds']} x {amt}" + (f" @ {s['weight']}" if s["weight"] else ""))
+    for a in r["activities"]:
+        bits = [f"{a['minutes']} min", f"avg HR {a['avg_hr']}" if a["avg_hr"] else "",
+                f"max {a['max_hr']}" if a["max_hr"] else "", f"{a.get('miles')} mi" if a.get("miles") else "",
+                f"{a.get('avg_mph')} mph" if a.get("avg_mph") else "",
+                f"{a.get('avg_stroke_rate')} spm" if a.get("avg_stroke_rate") else "",
+                f"{a.get('avg_watts')} W" if a.get("avg_watts") else "", f"load {a['training_load']}",
+                f"RPE {a['rpe']:g}" if a["rpe"] else ""]
+        print(f"\n{a['start']} {a['name']} ({a['type']}): " + ", ".join(b for b in bits if b))
+        if a["hr_zone_minutes"]:
+            print("    HR zones (min): " + "  ".join(f"Z{z} {m}" for z, m in a["hr_zone_minutes"].items()))
+        for ex, row in (a.get("exercises") or {}).items():
+            sets = ", ".join(
+                f"{x['lb'] or '-'}lb" + (f"x{x['watch_reps']}" if x["watch_reps"] else "") + f" ({x['seconds']}s)"
+                for x in row["sets"])
+            note = "" if row["watch_reps_usable"] else "  [no usable watch reps]"
+            print(f"    {ex}: {len(row['sets'])} sets: {sets}{note}")
+        if a.get("rest_seconds"):
+            print(f"    Rests (s): {a['rest_seconds']}")
+        if a.get("laps") and len(a["laps"]) > 1:
+            print("    Laps: " + "; ".join(f"{x['minutes']} min HR {x['avg_hr']}" for x in a["laps"]))
+        if a.get("notes"):
+            print(f"    Notes: {a['notes']}")
+
+
+# --- progress ---------------------------------------------------------------
+
+
+def _matches(exercise: str, wanted: list[str]) -> bool:
+    e = exercise.upper()
+    return any(w.upper().replace(" ", "_") in e for w in wanted)
+
+
+def progress(garmin, ref: str, up: list[str], down: list[str], step: float, apply: bool) -> None:
+    from workout_spec import parse_weight  # noqa: E402  (same dir as this script)
+
+    summary = gw.find_workout(garmin, ref)
+    w = garmin.get_workout_by_id(summary["workoutId"])
+    spec = gw.from_garmin(w)
+    changes: list[str] = []
+    unmatched = set(up) | set(down)
+
+    def walk(steps):
+        for s in steps:
+            if "repeat" in s:
+                walk(s.get("steps") or [])
+                continue
+            ex = s.get("exercise")
+            if not ex:
+                continue
+            for wanted, sign in ((up, 1), (down, -1)):
+                if wanted and _matches(ex, wanted):
+                    unmatched.difference_update(x for x in wanted if _matches(ex, [x]))
+                    if not s.get("weight"):
+                        changes.append(f"{ex}: no weight in the workout, left alone")
+                        continue
+                    old = parse_weight(s["weight"])
+                    new = max(0.0, old + sign * step)
+                    s["weight"] = f"{new:g}lb"
+                    changes.append(f"{ex}: {old:g} -> {new:g} lb")
+
+    for seg in spec.get("segments") or []:
+        walk(seg.get("steps") or [])
+    walk(spec.get("steps") or [])
+    for c in OrderedDict.fromkeys(changes):
+        print(c)
+    if unmatched:
+        print("No step matched: " + ", ".join(sorted(unmatched)))
+    if not changes:
+        return
+    path = next((p for p in SPEC_DIR.glob("*.y*ml")
+                 if str((gw.load_spec(p) or {}).get("id")) == str(w["workoutId"])),
+                SPEC_DIR / f"{gw.slug(w['workoutName'])}.yaml")
+    if not apply:
+        print(f"\nDry run. Re-run with --apply to update {w['workoutName']} on Garmin and {path.relative_to(HERE.parent.parent)}.")
+        return
+    path.write_text(gw.dump_spec(spec))
+    garmin.update_workout(w["workoutId"], gw.to_payload(spec))
+    print(f"\nUpdated {w['workoutName']} (id {w['workoutId']}) on Garmin and {path.relative_to(HERE.parent.parent)}.")
+
+
+# --- CLI --------------------------------------------------------------------
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("show", help="Everything Garmin has on one day's session")
+    s.add_argument("--date", help="Default: today (week.yaml time zone)")
+    s.add_argument("--json", action="store_true")
+    s = sub.add_parser("progress", help="Step loads up/down for the next time a workout comes up")
+    s.add_argument("workout", help="Garmin workout name or id")
+    s.add_argument("--up", nargs="*", default=[], help="Exercises to go up one step (name fragments)")
+    s.add_argument("--down", nargs="*", default=[], help="Exercises to go down one step")
+    s.add_argument("--step", type=float, default=5.0, help="Pounds per step (default 5)")
+    s.add_argument("--apply", action="store_true")
+    args = p.parse_args()
+
+    week = load_week()
+    garmin = gw.login()
+    if args.cmd == "show":
+        day = dt.date.fromisoformat(args.date) if args.date else dt.datetime.now(
+            ZoneInfo(week.get("timezone", "UTC"))).date()
+        r = show(garmin, week, day)
+        if args.json:
+            print(json.dumps(r, indent=2, default=str))
+        else:
+            print_show(r)
+    else:
+        if not args.up and not args.down:
+            sys.exit("Nothing to do: pass --up and/or --down.")
+        sys.path.insert(0, str(HERE))
+        progress(garmin, args.workout, args.up, args.down, args.step, args.apply)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
