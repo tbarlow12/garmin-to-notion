@@ -1,6 +1,8 @@
-# Garmin to Notion
+# Personal Fitness
 
-Sync your Garmin fitness data to beautiful Notion databases — activities, personal records, steps, sleep, workouts, and monthly summaries. Fully automated via GitHub Actions, 3 times a day.
+Tanner's personal fitness tooling: managing Garmin workouts with Claude (`.claude/skills/garmin-workouts`) and syncing Garmin fitness data into Notion.
+
+The sync sends Garmin fitness data to Notion databases — activities, personal records, steps, sleep, workouts, and monthly summaries. Fully automated via GitHub Actions, 3 times a day.
 
 ![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
