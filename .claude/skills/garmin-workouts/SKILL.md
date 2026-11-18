@@ -80,7 +80,7 @@ Rules that matter:
 
 ## Tanner's context
 
-Read project memory (`fitness-profile`) for his equipment, goals and limits
+Read `docs/fitness-context.md` for his equipment, goals and limits
 before designing workouts (for example: avoid jumping, Achilles). Write
 notes in the step `note:` field; that text shows on the watch.
 

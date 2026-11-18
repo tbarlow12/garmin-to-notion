@@ -26,22 +26,18 @@ login failures; never print the token). The standard week lives in
 `.claude/skills/garmin-workouts/workouts/`, managed with the `garmin-workouts`
 skill.
 
-## Tanner's rules (do not argue with these in the review)
+## Context
 
-- Alarm 5:10 every training day, lifting starts 5:30. A morning is on time if
-  the first activity starts by 5:30. Skip only if he was in bed after midnight.
-- Mon-Fri: lift (Block A + Block B) then 15 min cardio. Sat: zone 2, 45-60
-  min. Sun: rest. Long cardio is an extra, never part of the plan.
-- Missed day: never make it up and never shift the week. Tomorrow is
-  tomorrow's card. `plan` never schedules a past day.
-- Never miss twice: two missed training days in a row means fix the evening
-  (bedtime 10:15), not the morning.
-- Lift first; when short on time cut cardio, never the lift.
-- Load progression: 6-12 reps, ~2 in reserve. 12 on all 3 rounds, go up one
-  step next time; can't reach 6 in round 1, go down one step.
-- Minimize decisions. Don't offer him a menu; pick and say what you picked.
-- No new equipment. Achilles history: no jumping; if calves or Achilles are
-  tight, drop vest-walk incline to 8-10% or lose the vest before cutting time.
+Read `docs/fitness-context.md` first: Tanner's rules, schedule, session
+format, equipment, limits and where his data lives. It is the only source for
+those; don't rely on anything outside the repo. The rules the review must
+enforce, in short:
+
+- On time = first activity starts by 5:30 (alarm 5:10).
+- Mon-Fri lift + 15 min cardio, Sat zone 2, Sun rest.
+- A missed day is never made up and the week never shifts.
+- Two misses in a row: fix the evening, not the morning.
+- Pick, don't offer menus. No new equipment. No jumping (Achilles).
 
 ## Steps
 
@@ -49,8 +45,8 @@ skill.
    midweek, also run `$R review --week-of <today>` so the plan accounts for
    what has happened since.
 2. **Sleep (optional, best lever).** Garmin has no sleep data: he sleeps in a
-   Fitbit. If the Notion Sleep database (see project memory,
-   `fitness-notion-sources`) has rows for the week, add average sleep and
+   Fitbit. If the Notion Sleep database (listed in `docs/fitness-context.md`)
+   has rows for the week, add average sleep and
    bedtime. If it's stale, say so in one line and move on.
 3. **Assess consistency.** Lead with the scoreboard: sessions done/planned,
    lift days done/5, on-time starts, missed days, longest miss streak, and
