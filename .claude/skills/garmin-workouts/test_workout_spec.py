@@ -78,5 +78,5 @@ def test_rejects_bad_specs():
 def test_repo_specs_round_trip(path):
     spec = yaml.safe_load(path.read_text())
     payload = to_payload(spec)
-    again = from_garmin({**payload, "workoutId": spec["id"]})
+    again = from_garmin({**payload, "workoutId": spec.get("id")})
     assert to_payload(again) == payload

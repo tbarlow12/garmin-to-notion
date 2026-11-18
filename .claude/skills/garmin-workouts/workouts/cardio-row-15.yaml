@@ -1,0 +1,15 @@
+name: "Cardio: Row 15"
+sport: cardio_training
+description: After lifting, Thursday. 2 min easy, 5 rounds of 1 min hard / 1 min easy, 3 min easy.
+steps:
+  - warmup: 2m
+    note: Easy row
+  - repeat: 5
+    steps:
+      - type: interval
+        time: 1m
+        note: Hard, long strokes
+      - recovery: 1m
+        note: Easy
+  - cooldown: 3m
+    note: Easy row
