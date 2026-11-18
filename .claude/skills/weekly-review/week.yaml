@@ -1,0 +1,34 @@
+# Tanner's standard week. The weekly review schedules exactly this, every week.
+# Source: Notion "Workout Rules" (Nov 10 2026 update) and the Nov 17 2026 rules:
+# alarm 5:10, lift at 5:30, Mon-Fri lift + 15 min cardio, Sat zone 2, Sun rest,
+# never make up a missed day.
+#
+# Each day lists Garmin workouts by exact name (or id), in order. Change a day
+# here, not in the review, so the plan stays decision-free.
+
+start_by: "05:30"        # a morning counts as on time if the first activity starts by this
+alarm: "05:10"
+timezone: America/Denver
+
+days:
+  mon:
+    focus: Push A (chest)
+    workouts: [Upper Push 1, "Cardio: Vest Walk 15"]
+  tue:
+    focus: Pull A (rows)
+    workouts: [Upper Pull 1, "Cardio: Echo Bike 15"]
+  wed:
+    focus: Push B (shoulders, triceps)
+    workouts: [Upper Push 2, "Cardio: Vest Walk 15"]
+  thu:
+    focus: Pull B (vertical pull)
+    workouts: [Upper Pull 2, "Cardio: Row 15"]
+  fri:
+    focus: Lower body + core
+    workouts: [Full Body 1, "Cardio: Vest Walk 15"]
+  sat:
+    focus: Zone 2
+    workouts: ["Zone 2: 45-60 min"]
+  sun:
+    focus: Rest
+    workouts: []

@@ -1,0 +1,336 @@
+#!/usr/bin/env python3
+"""Weekly training review and next-week plan, from Garmin Connect.
+
+    .claude/bin/weekly-review review [--week-of DATE] [--json]
+    .claude/bin/weekly-review plan [--from DATE] [--to DATE] [--apply]
+
+`review` looks at one Monday-Sunday week (default: the last complete one) and
+reports, day by day, what was planned, what was done and when it started, plus
+strength loads compared with the last time each workout was done.
+
+`plan` lays the standard week from .claude/skills/weekly-review/week.yaml over
+a date range (default: next Monday to Sunday) and shows what is already on the
+Garmin calendar. With --apply it schedules whatever is missing. Days that have
+passed are never scheduled: a missed day is not made up.
+
+Auth and Garmin helpers come from .claude/bin/garmin-workouts (GARMIN_TOKENS).
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import importlib.machinery
+import importlib.util
+import json
+import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import yaml
+
+HERE = Path(__file__).resolve().parent
+WEEK_FILE = HERE.parent / "skills" / "weekly-review" / "week.yaml"
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+GRAMS_PER_LB = 453.59237
+
+
+def _load_gw():
+    loader = importlib.machinery.SourceFileLoader("garmin_workouts", str(HERE / "garmin-workouts"))
+    spec = importlib.util.spec_from_loader("garmin_workouts", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+gw = _load_gw()
+
+
+def load_week() -> dict[str, Any]:
+    return yaml.safe_load(WEEK_FILE.read_text())
+
+
+def today(week: dict[str, Any]) -> dt.date:
+    return dt.datetime.now(ZoneInfo(week.get("timezone", "UTC"))).date()
+
+
+def monday(d: dt.date) -> dt.date:
+    return d - dt.timedelta(days=d.weekday())
+
+
+def daterange(start: dt.date, end: dt.date):
+    d = start
+    while d <= end:
+        yield d
+        d += dt.timedelta(days=1)
+
+
+def lb(grams: float | None) -> float | None:
+    if not grams:
+        return None
+    return round(grams / GRAMS_PER_LB * 2) / 2
+
+
+# --- Review -----------------------------------------------------------------
+
+
+def _activity_row(a: dict[str, Any]) -> dict[str, Any]:
+    dist = a.get("distance") or 0
+    return {
+        "id": a.get("activityId"),
+        "name": a.get("activityName"),
+        "type": (a.get("activityType") or {}).get("typeKey"),
+        "start": (a.get("startTimeLocal") or "")[11:16],
+        "date": (a.get("startTimeLocal") or "")[:10],
+        "minutes": round((a.get("duration") or 0) / 60),
+        "avg_hr": a.get("averageHR"),
+        "max_hr": a.get("maxHR"),
+        "calories": a.get("calories"),
+        "miles": round(dist / 1609.344, 2) if dist else None,
+        "training_load": round(a.get("activityTrainingLoad") or 0),
+        "aerobic_te": a.get("aerobicTrainingEffect"),
+        "intensity_minutes": (a.get("moderateIntensityMinutes") or 0) + 2 * (a.get("vigorousIntensityMinutes") or 0),
+    }
+
+
+def strength_loads(garmin, activity_id) -> dict[str, dict[str, Any]]:
+    """Per exercise: sets, heaviest weight (lb) and total reps if the watch counted them."""
+    out: dict[str, dict[str, Any]] = {}
+    try:
+        data = garmin.get_activity_exercise_sets(activity_id) or {}
+    except Exception:  # noqa: BLE001
+        return out
+    for s in data.get("exerciseSets") or []:
+        if s.get("setType") != "ACTIVE":
+            continue
+        ex = (s.get("exercises") or [{}])[0]
+        key = ex.get("name") or ex.get("category") or "UNKNOWN"
+        row = out.setdefault(key, {"sets": 0, "top_lb": None, "reps": 0})
+        row["sets"] += 1
+        w = lb(s.get("weight"))
+        if w and (row["top_lb"] is None or w > row["top_lb"]):
+            row["top_lb"] = w
+        row["reps"] += s.get("repetitionCount") or 0
+    for row in out.values():
+        row["reps"] = row["reps"] or None
+    return out
+
+
+def planned_for(garmin, week: dict[str, Any], start: dt.date, end: dt.date) -> tuple[dict[str, list[str]], str]:
+    """What was planned per date: the Garmin calendar if it has anything, else week.yaml."""
+    cal = defaultdict(list)
+    for it in gw.scheduled(garmin, start, end):
+        cal[it["date"]].append(it.get("title"))
+    if cal:
+        return {d.isoformat(): cal.get(d.isoformat(), []) for d in daterange(start, end)}, "garmin calendar"
+    return {
+        d.isoformat(): list(week["days"][DAYS[d.weekday()]]["workouts"]) for d in daterange(start, end)
+    }, "week.yaml (nothing was on the Garmin calendar)"
+
+
+def review(garmin, week: dict[str, Any], start: dt.date) -> dict[str, Any]:
+    end = start + dt.timedelta(days=6)
+    now = today(week)
+    acts = [_activity_row(a) for a in garmin.get_activities_by_date(start.isoformat(), end.isoformat()) or []]
+    acts.sort(key=lambda a: (a["date"], a["start"]))
+    planned, plan_source = planned_for(garmin, week, start, end)
+    start_by = week.get("start_by", "05:30")
+
+    # Strength loads, compared with the last time the same workout was done (10 weeks back).
+    history = garmin.get_activities_by_date((start - dt.timedelta(weeks=10)).isoformat(),
+                                            (start - dt.timedelta(days=1)).isoformat()) or []
+    for a in acts:
+        if a["type"] != "strength_training":
+            continue
+        a["loads"] = strength_loads(garmin, a["id"])
+        prev = [h for h in history if h.get("activityName") == a["name"]]
+        if prev:
+            p = max(prev, key=lambda h: h.get("startTimeLocal") or "")
+            a["previous"] = {"date": (p.get("startTimeLocal") or "")[:10],
+                             "minutes": round((p.get("duration") or 0) / 60),
+                             "loads": strength_loads(garmin, p["activityId"])}
+
+    days = []
+    misses_in_a_row = max_miss_streak = 0
+    for d in daterange(start, end):
+        iso = d.isoformat()
+        done = [a for a in acts if a["date"] == iso]
+        plan = planned[iso]
+        is_training_day = bool(plan)
+        first = min((a["start"] for a in done), default=None)
+        lifted = any(a["type"] == "strength_training" for a in done)
+        status = "rest" if not is_training_day and not done else (
+            "extra" if not is_training_day else ("done" if done else "missed"))
+        plans_lift = any(not str(n).lower().startswith(("cardio", "zone")) for n in plan) and d.weekday() < 5
+        if status == "done" and plans_lift and not lifted:
+            status = "partial"  # showed up, but no lift
+        if status == "missed" and d >= now:
+            status = "upcoming" if d > now else "today"
+        if status == "missed":
+            misses_in_a_row += 1
+            max_miss_streak = max(max_miss_streak, misses_in_a_row)
+        elif status in ("done", "partial"):
+            misses_in_a_row = 0
+        days.append({
+            "date": iso,
+            "day": DAYS[d.weekday()],
+            "focus": week["days"][DAYS[d.weekday()]].get("focus"),
+            "planned": plan,
+            "status": status,
+            "first_start": first,
+            "on_time": bool(first and first <= start_by),
+            "lifted": lifted,
+            "activities": [{k: v for k, v in a.items()} for a in done],
+        })
+
+    training_days = [x for x in days if x["planned"] and x["date"] < now.isoformat()]
+    lift_days = [x for x in training_days if x["day"] in DAYS[:5]]
+    summary = {
+        "sessions_done": sum(x["status"] == "done" for x in training_days),
+        "partial_days": [x["date"] for x in training_days if x["status"] == "partial"],
+        "sessions_planned": len(training_days),
+        "lift_days_done": sum(x["lifted"] for x in lift_days),
+        "lift_days_planned": len(lift_days),
+        "on_time_mornings": sum(x["on_time"] for x in days),
+        "missed_days": [x["date"] for x in training_days if x["status"] == "missed"],
+        "longest_miss_streak": max_miss_streak,
+        "total_minutes": sum(a["minutes"] for a in acts),
+        "training_load": sum(a["training_load"] for a in acts),
+        "intensity_minutes": sum(a["intensity_minutes"] for a in acts),
+    }
+
+    # Previous week, for trend lines only.
+    pstart = start - dt.timedelta(days=7)
+    prev_acts = [_activity_row(a) for a in garmin.get_activities_by_date(
+        pstart.isoformat(), (start - dt.timedelta(days=1)).isoformat()) or []]
+    summary["previous_week"] = {
+        "sessions": len({a["date"] for a in prev_acts}),
+        "total_minutes": sum(a["minutes"] for a in prev_acts),
+        "training_load": sum(a["training_load"] for a in prev_acts),
+    }
+
+    # Daily health context, best effort.
+    health = []
+    for d in daterange(start, min(end, now)):
+        row = {"date": d.isoformat()}
+        try:
+            s = garmin.get_user_summary(d.isoformat()) or {}
+            row.update(steps=s.get("totalSteps"), resting_hr=s.get("restingHeartRate"),
+                       body_battery_high=s.get("bodyBatteryHighestValue"))
+        except Exception:  # noqa: BLE001
+            pass
+        health.append(row)
+
+    return {"week": f"{start} to {end}", "plan_source": plan_source, "start_by": start_by,
+            "summary": summary, "days": days, "health": health}
+
+
+def print_review(r: dict[str, Any]) -> None:
+    s = r["summary"]
+    print(f"# Week {r['week']}  (plan from {r['plan_source']})\n")
+    print(f"Sessions {s['sessions_done']}/{s['sessions_planned']}, lift days {s['lift_days_done']}/"
+          f"{s['lift_days_planned']}, started by {r['start_by']} on {s['on_time_mornings']} day(s), "
+          f"longest run of missed days {s['longest_miss_streak']}"
+          + (f", partial (no lift) {len(s['partial_days'])}" if s["partial_days"] else ""))
+    pw = s["previous_week"]
+    print(f"Minutes {s['total_minutes']} (prev {pw['total_minutes']}), training load {s['training_load']} "
+          f"(prev {pw['training_load']}), intensity minutes {s['intensity_minutes']}\n")
+    for d in r["days"]:
+        plan = ", ".join(d["planned"]) or "rest"
+        when = f" started {d['first_start']}{'' if d['on_time'] else ' (late)'}" if d["first_start"] else ""
+        print(f"{d['day'].title()} {d['date']}  [{d['status'].upper()}]  plan: {plan}{when}")
+        for a in d["activities"]:
+            bits = [f"{a['minutes']} min", f"avg HR {a['avg_hr']}" if a["avg_hr"] else "",
+                    f"{a['miles']} mi" if a["miles"] else "", f"load {a['training_load']}"]
+            print(f"    {a['start']} {a['name']} ({a['type']}): " + ", ".join(b for b in bits if b))
+            for ex, row in (a.get("loads") or {}).items():
+                prev = ((a.get("previous") or {}).get("loads") or {}).get(ex) or {}
+                was = f" (was {prev.get('top_lb')} lb x{prev.get('sets')})" if prev else ""
+                reps = f", {row['reps']} reps" if row["reps"] else ""
+                print(f"        {ex}: {row['sets']} sets, top {row['top_lb']} lb{reps}{was}")
+            if a.get("previous"):
+                print(f"        previous time: {a['previous']['date']}, {a['previous']['minutes']} min")
+    print("\nDaily: " + "; ".join(
+        f"{h['date'][5:]} {h.get('steps') or '-'} steps RHR {h.get('resting_hr') or '-'}" for h in r["health"]))
+
+
+# --- Plan -------------------------------------------------------------------
+
+
+def plan(garmin, week: dict[str, Any], start: dt.date, end: dt.date, apply: bool) -> None:
+    now = today(week)
+    if start < now:
+        print(f"Starting at {now}: past days are never scheduled (missed days aren't made up).")
+        start = now
+    workouts = gw.all_workouts(garmin)
+    on_cal = defaultdict(set)
+    for it in gw.scheduled(garmin, start, end):
+        on_cal[it["date"]].add(str(it.get("workoutId")))
+    missing_workouts = set()
+    todo: dict[str, list[tuple[int, str]]] = defaultdict(list)
+    for d in daterange(start, end):
+        day = week["days"][DAYS[d.weekday()]]
+        names = day.get("workouts") or []
+        print(f"{DAYS[d.weekday()].title()} {d}  {day.get('focus')}")
+        for ref in names:
+            match = [w for w in workouts if w.get("workoutName") == ref or str(w["workoutId"]) == str(ref)]
+            if not match:
+                missing_workouts.add(ref)
+                print(f"    !! {ref}: no Garmin workout with that name (push its spec first)")
+                continue
+            w = match[0]
+            if str(w["workoutId"]) in on_cal[d.isoformat()]:
+                print(f"    ok  {ref} (already scheduled)")
+            else:
+                print(f"    +   {ref}")
+                todo[d.isoformat()].append((w["workoutId"], w["workoutName"]))
+    n = sum(len(v) for v in todo.values())
+    if missing_workouts:
+        print(f"\nMissing on Garmin: {', '.join(sorted(missing_workouts))}")
+    if not apply:
+        print(f"\n{n} calendar entr{'y' if n == 1 else 'ies'} to add. Re-run with --apply to schedule.")
+        return
+    for date, items in sorted(todo.items()):
+        for wid, name in items:
+            gw.schedule_on(garmin, wid, name, [date])
+    print(f"\nScheduled {n} entr{'y' if n == 1 else 'ies'}.")
+
+
+# --- CLI --------------------------------------------------------------------
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("review", help="Review one Monday-Sunday week")
+    s.add_argument("--week-of", help="Any date in the week (default: last complete week)")
+    s.add_argument("--json", action="store_true")
+
+    s = sub.add_parser("plan", help="Lay week.yaml over a date range; --apply schedules it")
+    s.add_argument("--from", dest="start", help="Default: next Monday (today if it is Monday)")
+    s.add_argument("--to", dest="end", help="Default: the Sunday after --from")
+    s.add_argument("--apply", action="store_true")
+
+    args = p.parse_args()
+    week = load_week()
+    garmin = gw.login()
+    now = today(week)
+    if args.cmd == "review":
+        start = monday(dt.date.fromisoformat(args.week_of)) if args.week_of else monday(now) - dt.timedelta(days=7)
+        r = review(garmin, week, start)
+        print(json.dumps(r, indent=2) if args.json else "", end="")
+        if not args.json:
+            print_review(r)
+    else:
+        start = dt.date.fromisoformat(args.start) if args.start else (
+            now if now.weekday() == 0 else monday(now) + dt.timedelta(days=7))
+        end = dt.date.fromisoformat(args.end) if args.end else start + dt.timedelta(days=6 - start.weekday())
+        plan(garmin, week, start, end, args.apply)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
