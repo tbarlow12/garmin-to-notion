@@ -189,6 +189,15 @@ PYTHONPATH=src python -m garmin_to_notion all -v
 
 It uses the same `GARMIN_TOKENS` login as the sync. See the skill's `SKILL.md` and `reference.md` for commands and the spec format. Garmin has no official workout API; this uses the Garmin Connect app's private endpoints via `garminconnect`, so it could break if Garmin changes them.
 
+## Coach
+
+`.claude/agents/coach.md` is a Claude Code subagent that plans tomorrow's session the night before, checks the morning happened, debriefs each session and runs the Sunday review. It uses the `garmin-workouts`, `debrief` and `weekly-review` skills. Everything it needs to know lives in `docs/`: `fitness-context.md` (rules, schedule, data locations), `coach-spec.md` (triggers and metrics) and `athlete.md` (private profile).
+
+```bash
+.claude/bin/debrief show                                  # today's session in detail
+.claude/bin/debrief progress "Upper Pull 1" --up hammer_curl --apply   # next time's loads
+```
+
 ## Project Structure
 
 ```

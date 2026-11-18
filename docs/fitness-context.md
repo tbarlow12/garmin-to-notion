@@ -1,10 +1,10 @@
 # Tanner's training context
 
-This is what the Claude Code skills in this repo (`weekly-review`,
-`garmin-workouts`) need to know about Tanner. It lives in the repo so it works
+This is what the Claude Code agents and skills in this repo (`coach`,
+`debrief`, `weekly-review`, `garmin-workouts`) need to know about Tanner. It lives in the repo so it works
 in any Claude session. Update this file when a rule changes, and don't keep
-the same fact anywhere else. This repo is public, so keep body weight, health
-details and other personal numbers out.
+the same fact anywhere else. Body weight, goal numbers, sleep and health details
+live in `docs/athlete.md`, which is only committed while the repo is private.
 
 ## Goal and limits
 
@@ -58,14 +58,38 @@ medicine balls.
 - Load progression: 6-12 reps, stop with about 2 in reserve. 12 reps on all 3
   rounds means up one step next time (smallest dumbbell, kettlebell or band
   jump) and start back near 6-8 reps. Can't reach 6 in round 1 means down one
-  step. Otherwise same weight, aim for +1 rep.
+  step. Otherwise same weight, aim for +1 rep. The default dumbbell step is
+  5 lb (PowerBlock).
+- Reps: the watch's auto rep counting is unreliable, and he doesn't touch his
+  phone mid-workout. Reps come from, in order: (1) his round notes, jotted on
+  a whiteboard or paper card (e.g. `R1 12/10/12/8`) and sent after the session
+  as a photo, a typed reply or the Garmin activity notes; (2) watch reps, only
+  when every set has a believable count (1-30); (3) if neither, one question
+  after the session: "Anything hit 12 every round, or miss 6 in round 1?" He
+  answers by exception ("none", "OHP up, rows down").
+- Exercise swaps and changes to `week.yaml` are proposed in the weekly review
+  and made only after he says yes.
+- Sharp, worsening or lingering pain: stop prescribing that movement and tell
+  him to see a professional. No meal plans, fasting, supplements or medication
+  advice.
+
+## How to talk to him
+
+- One to three lines. The first line says what to do or what happened.
+- Numbers over adjectives: "5 of 6 sessions, 0.9 lb down", not "great week".
+- Name the pattern, not a lecture. A miss gets one line and tomorrow's plan.
+- Say when data is missing ("no sleep data since Oct 29") rather than guess.
 
 ## Where the data is
 
 - **Garmin Connect** is the source of truth for workouts and activities.
   Access is through `garminconnect` with the `GARMIN_TOKENS` env var (see
   `.claude/skills/garmin-workouts/SKILL.md`). The watch logs strength weights
-  but usually not reps. "Running" or "Treadmill Running" activities are
+  but not reliable reps. Per activity it also gives the HR time series
+  (a sample every 2-3 s), seconds in HR zones 1-5, laps and work/rest
+  intervals, strength sets (exercise, weight in grams, duration), multisport
+  legs, the original FIT file, and daily readiness, resting HR, stress, body
+  battery and VO2 max. `.claude/bin/debrief show` pulls all of it for a day. "Running" or "Treadmill Running" activities are
   usually the incline vest walk. Garmin has no sleep data, because he sleeps in
   a Fitbit.
 - **Notion**, through this repo's sync (`src/garmin_to_notion`) and the Notion
@@ -80,3 +104,10 @@ medicine balls.
     `collection://596e9187-fa65-833e-9e46-8734b4c16fbd`
   - Daily steps: `collection://33de9187-fa65-8373-a421-07268160b270`
   - Monthly activity summary: `collection://f1fe9187-fa65-8302-8317-87a881c9e3a5`
+  - Cut plan: https://app.notion.com/p/32fe9187fa65803cb491c94943a719a5
+  - Health Accountability Plan (weekly Monday check-in with a partner):
+    https://app.notion.com/p/5df63d95737240d1a1352036e41e485d
+  - Coach Log: not created yet. The `debrief` skill creates a "Coach Log"
+    database under the Fitness hub on first run and records its id here.
+- The Notion sync stalled after Oct 29 2026 when GitHub disabled the scheduled
+  workflow; check recency before trusting Notion.

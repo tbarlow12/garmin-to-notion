@@ -39,6 +39,7 @@ htmlcov/
 .claude/*
 !.claude/skills/
 !.claude/bin/
+!.claude/agents/
 
 # Images (branding assets, not needed in repo)
 img/
