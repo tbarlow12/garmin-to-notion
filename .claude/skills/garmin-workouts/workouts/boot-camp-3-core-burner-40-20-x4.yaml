@@ -1,0 +1,29 @@
+id: 1766434548
+name: 'Boot Camp 3: Core Burner (40/20 x4)'
+sport: strength_training
+description: 40 s work / 20 s rest, 5 stations, 4 rounds = 20 min.
+steps:
+- warmup: 3m
+  note: 1 min easy air bike, then 10 KB halos, 10 goblet squats, 10 band pull-aparts
+- repeat: 4
+  steps:
+  - exercise: AIR_BIKE
+    time: 40s
+    note: Hard
+  - rest: 20s
+  - exercise: KNEELING_AB_WHEEL
+    time: 40s
+    note: Ab roller rollouts
+  - rest: 20s
+  - exercise: CORE/RUSSIAN_TWIST
+    time: 40s
+    note: 8 lb Rhino ball
+  - rest: 20s
+  - exercise: MOUNTAIN_CLIMBER_WITH_HANDS_ON_BENCH
+    time: 40s
+    note: Hands on bench, controlled
+  - rest: 20s
+  - exercise: ROLLOUT
+    time: 40s
+    note: TRX body saw / fallout
+  - rest: 20s

@@ -177,6 +177,18 @@ PYTHONPATH=src python -m garmin_to_notion cleanup --execute
 PYTHONPATH=src python -m garmin_to_notion all -v
 ```
 
+## Managing Garmin Workouts
+
+`.claude/bin/garmin-workouts` is a small CLI, and `.claude/skills/garmin-workouts/` a Claude Code skill that uses it, for managing Garmin Connect workouts (list, show, pull, push, delete, schedule, send to watch). Workouts are written as short YAML specs, so a Claude Code session in this repo can change them on request ("make the Engine Room AMRAP 15 minutes and schedule it Friday").
+
+```bash
+.claude/bin/garmin-workouts list
+.claude/bin/garmin-workouts pull "Engine Room"   # -> workouts/*.yaml
+.claude/bin/garmin-workouts push .claude/skills/garmin-workouts/workouts/boot-camp-2-engine-room-amrap-20.yaml --schedule 2026-11-20
+```
+
+It uses the same `GARMIN_TOKENS` login as the sync. See the skill's `SKILL.md` and `reference.md` for commands and the spec format. Garmin has no official workout API; this uses the Garmin Connect app's private endpoints via `garminconnect`, so it could break if Garmin changes them.
+
 ## Project Structure
 
 ```

@@ -1,0 +1,75 @@
+id: 1735099460
+name: Full Body 1
+sport: multi_sport
+description: Full-body Forge
+segments:
+- sport: strength_training
+  steps:
+  - repeat: 3
+    steps:
+    - exercise: MEDICINE_BALL_SLAM
+      reps: 15
+    - exercise: KETTLEBELL_SWING
+      reps: 15
+      weight: 40lb
+    - exercise: GOBLET_SQUAT
+      reps: 10
+      weight: 60lb
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      weight: 65lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: ROMANIAN_DEADLIFT
+      reps: 10
+      weight: 50lb
+    - exercise: DUMBBELL_REVERSE_LUNGE
+      reps: 10
+      weight: 40lb
+    - exercise: HAMSTRING_CURL
+      reps: 10
+    - exercise: DUMBBELL_STEP_UP
+      reps: 10
+      weight: 60lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: KNEELING_AB_WHEEL
+      reps: 10
+    - exercise: DEAD_BUG
+      reps: 10
+    - exercise: PLANK/SIDE_PLANK
+      time: 45s
+      note: Left side
+      extra:
+        endConditionCompare: gt
+    - exercise: PLANK/SIDE_PLANK
+      time: 45s
+      note: Right side
+      extra:
+        endConditionCompare: gt
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      note: Left side
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      note: Right side
+    - exercise: LYING_STRAIGHT_LEG_RAISE
+      reps: 10
+    - exercise: BACK_EXTENSION_WITH_OPPOSITE_ARM_AND_LEG_REACH
+      reps: 10
+      note: Bird dogs
+    - rest: 1m
+- sport: yoga
+  steps:
+  - exercise: MOVE/
+    lap: true
+    note: Cool Down Stretch
+- sport: other
+  steps:
+  - type: other
+    lap: true
+    note: Meditation
+    extra:
+      endConditionCompare: gt

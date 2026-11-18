@@ -1,0 +1,75 @@
+id: 1735083313
+name: Upper Push 2
+sport: multi_sport
+description: Full-body Forge
+segments:
+- sport: strength_training
+  steps:
+  - repeat: 3
+    steps:
+    - exercise: SEATED_DUMBBELL_SHOULDER_PRESS
+      reps: 10
+      weight: 40lb
+    - exercise: DUMBBELL_LATERAL_RAISE
+      reps: 10
+      weight: 20lb
+    - exercise: SINGLE_ARM_DUMBBELL_BENCH_PRESS
+      reps: 10
+      weight: 60lb
+    - exercise: TRICEPS_PRESSDOWN
+      reps: 10
+      weight: 55lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: SQUAT_TO_PRESS
+      reps: 10
+      weight: 75lb
+      note: Squat to overhead press
+    - exercise: INCLINE_DUMBBELL_FLYE
+      reps: 10
+      weight: 40lb
+    - exercise: CHEST_PRESS_WITH_BAND
+      reps: 10
+      weight: 75lb
+    - exercise: OVERHEAD_DUMBBELL_TRICEPS_EXTENSION
+      reps: 10
+      weight: 40lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: KNEELING_AB_WHEEL
+      reps: 10
+    - exercise: PLANK/SIDE_PLANK
+      time: 45s
+      note: Left side
+      extra:
+        endConditionCompare: gt
+    - exercise: PLANK/SIDE_PLANK
+      time: 45s
+      note: Right side
+      extra:
+        endConditionCompare: gt
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      note: Left side
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      note: Right side
+    - exercise: LYING_STRAIGHT_LEG_RAISE
+      reps: 10
+    - exercise: SUPERMAN_FROM_FLOOR
+      reps: 10
+    - rest: 1m
+- sport: yoga
+  steps:
+  - exercise: MOVE/
+    lap: true
+    note: Cool Down Stretch
+- sport: other
+  steps:
+  - type: other
+    lap: true
+    note: Meditation
+    extra:
+      endConditionCompare: gt

@@ -1,0 +1,74 @@
+id: 1735095607
+name: Upper Pull 2
+sport: multi_sport
+segments:
+- sport: strength_training
+  steps:
+  - repeat: 3
+    steps:
+    - exercise: BAND_ASSISTED_PULL_UP
+      reps: 10
+    - exercise: INCLINE_REVERSE_FLYE
+      reps: 10
+      weight: 30lb
+      note: Rear delt fly
+    - exercise: TRX_INVERTED_ROW
+      reps: 10
+    - exercise: DUMBBELL_BICEPS_CURL_WITH_STATIC_HOLD
+      reps: 10
+      weight: 30lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: KNEELING_LAT_PULLDOWN
+      reps: 10
+      weight: 55lb
+      note: Gorilla row
+    - exercise: STRAIGHT_ARM_PULLDOWN
+      reps: 10
+      weight: 55lb
+    - exercise: BANDED_EXERCISES/ROW
+      reps: 10
+      weight: 65lb
+      note: Squat to row
+    - exercise: CROSS_BODY_DUMBBELL_HAMMER_CURL
+      reps: 10
+      weight: 30lb
+    - rest: lap
+  - repeat: 3
+    steps:
+    - exercise: CRUNCH/REVERSE_CRUNCH
+      reps: 10
+      note: Gorilla row
+    - exercise: BACK_EXTENSION_WITH_OPPOSITE_ARM_AND_LEG_REACH
+      reps: 10
+      note: Bird Dogs
+    - type: warmup
+      exercise: WARM_UP/
+      lap: true
+      note: Set up for plank
+    - exercise: PLANK/PLANK
+      time: 1m
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      weight: 55lb
+      note: Left side
+    - exercise: KNEELING_WOODCHOPPER
+      reps: 10
+      weight: 55lb
+      note: Right side
+  - type: warmup
+    exercise: WARM_UP/
+    reps: 10
+- sport: yoga
+  steps:
+  - exercise: MOVE/
+    lap: true
+    note: Cool Down Stretch
+- sport: other
+  steps:
+  - type: other
+    lap: true
+    note: Meditation
+    extra:
+      endConditionCompare: gt
