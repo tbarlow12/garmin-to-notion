@@ -1,6 +1,6 @@
 # Tanner's standard week. The weekly review schedules exactly this, every week.
 # Rules behind it are in docs/fitness-context.md:
-# each weekday is one multi-sport Garmin workout (30 min cardio, then the lift), Sat zone 2, Sun rest,
+# each weekday is a 30-min cardio workout then the lift (two Garmin workouts), Sat zone 2, Sun rest,
 # never make up a missed day.
 #
 # Each day lists Garmin workouts by exact name (or id), in order. Change a day
@@ -13,19 +13,19 @@ timezone: America/Denver
 days:
   mon:
     focus: Push A (chest)
-    workouts: [Upper Push 1]
+    workouts: ["Treadmill Vest Walk 30", Upper Push 1]
   tue:
     focus: Pull A (rows)
-    workouts: [Upper Pull 1]
+    workouts: ["Echo Bike 30", Upper Pull 1]
   wed:
     focus: Push B (shoulders, triceps)
-    workouts: [Upper Push 2]
+    workouts: ["Treadmill Vest Walk 30", Upper Push 2]
   thu:
     focus: Pull B (vertical pull)
-    workouts: [Upper Pull 2]
+    workouts: ["Row 30", Upper Pull 2]
   fri:
     focus: Lower body + core
-    workouts: [Full Body 1]
+    workouts: ["Treadmill Vest Walk 30", Full Body 1]
   sat:
     focus: Zone 2
     workouts: ["Zone 2: 45-60 min"]

@@ -24,8 +24,9 @@ login failures; never print the token). The standard week lives in
 `week.yaml` next to this file: which Garmin workouts go on which day, the
 5:30 start-by time and the time zone. The workouts themselves live on Garmin
 (the source of truth) and are changed with the `garmin-workouts` skill, never
-through a pull request. Each weekday is one multi-sport workout: 30 min of
-cardio, then the lift.
+through a pull request. Each weekday is two workouts in order: 30 min of
+cardio (its own workout, so the watch records treadmill, bike or rower
+correctly), then the lift.
 
 ## Context
 
@@ -35,7 +36,7 @@ those; don't rely on anything outside the repo. The rules the review must
 enforce, in short:
 
 - On time = first activity starts by 5:30 (alarm 5:10).
-- Mon-Fri: 30 min cardio, then the lift (one Garmin workout). Sat zone 2, Sun rest.
+- Mon-Fri: 30 min cardio workout, then the lift workout. Sat zone 2, Sun rest.
 - A missed day is never made up and the week never shifts.
 - Two misses in a row: fix the evening, not the morning.
 - Pick, don't offer menus. No new equipment. No jumping (Achilles).
