@@ -177,6 +177,15 @@ PYTHONPATH=src python -m garmin_to_notion cleanup --execute
 PYTHONPATH=src python -m garmin_to_notion all -v
 ```
 
+## Pushing Workouts to Garmin
+
+`src/garmin_to_notion/bootcamp.py` defines short boot camp circuits (EMOM, AMRAP and 40/20 intervals) as Garmin strength workouts. `scripts/push_workouts.py` uploads them to Garmin Connect > Training > Workouts, using the same Garmin login as the sync. Re-running updates workouts with the same name instead of duplicating them.
+
+- **From GitHub:** Actions > "Push boot camp workouts to Garmin" > Run workflow. Optionally pick one circuit or a date to schedule.
+- **Locally:** `PYTHONPATH=src python scripts/push_workouts.py` (add `--dry-run` to print the JSON, `--only 1` for one circuit, `--schedule 2026-11-19` to put it on the calendar).
+
+Then open the workout in the Garmin Connect app and tap **Send to Device**. Garmin has no official API for creating workouts; this uses the same private endpoints as the Garmin Connect app, via `garminconnect`, so it could break if Garmin changes them.
+
 ## Project Structure
 
 ```
