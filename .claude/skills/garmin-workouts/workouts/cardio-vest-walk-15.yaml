@@ -1,7 +1,0 @@
-name: "Cardio: Vest Walk 15"
-sport: cardio_training
-description: After lifting, Mon/Wed/Fri. Treadmill 12% incline, 40 lb vest, ~3.6 mph. If calves or Achilles are tight, drop to 8-10% or lose the vest before cutting time.
-steps:
-  - type: interval
-    time: 15m
-    note: 12% incline, 40 lb vest, 3.6 mph. Tight Achilles? 8-10% or no vest.

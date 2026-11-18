@@ -22,9 +22,10 @@ $R plan --from 2026-11-19 --to 2026-11-29 --apply
 Auth is `GARMIN_TOKENS`, shared with `garmin-workouts` (see that skill for
 login failures; never print the token). The standard week lives in
 `week.yaml` next to this file: which Garmin workouts go on which day, the
-5:30 start-by time and the time zone. The workouts themselves are specs in
-`.claude/skills/garmin-workouts/workouts/`, managed with the `garmin-workouts`
-skill.
+5:30 start-by time and the time zone. The workouts themselves live on Garmin
+(the source of truth) and are changed with the `garmin-workouts` skill, never
+through a pull request. Each weekday is one multi-sport workout: 30 min of
+cardio, then the lift.
 
 ## Context
 
@@ -34,7 +35,7 @@ those; don't rely on anything outside the repo. The rules the review must
 enforce, in short:
 
 - On time = first activity starts by 5:30 (alarm 5:10).
-- Mon-Fri lift + 15 min cardio, Sat zone 2, Sun rest.
+- Mon-Fri: 30 min cardio, then the lift (one Garmin workout). Sat zone 2, Sun rest.
 - A missed day is never made up and the week never shifts.
 - Two misses in a row: fix the evening, not the morning.
 - Pick, don't offer menus. No new equipment. No jumping (Achilles).
@@ -62,11 +63,11 @@ enforce, in short:
    cardio swaps. Use training load, minutes and RHR only as trend context.
 5. **Plan the coming week.** Run `$R plan` (add `--from` today/tomorrow if
    reviewing midweek so the rest of this week gets scheduled too). If it
-   reports workouts missing on Garmin, push their specs with
-   `garmin-workouts push FILE` first. Then `$R plan --apply`. The plan is the
+   reports a workout missing on Garmin, create it with the `garmin-workouts`
+   skill first. Then `$R plan --apply`. The plan is the
    standard week every week: don't rotate, swap or "make up" anything. Change
    `week.yaml` only when Tanner asks for a different week or agrees to a change
-   you proposed, and commit it.
+   you proposed. Commit `week.yaml`; workout edits happen on Garmin only.
 6. **Report** (keep it short; he skims):
    - One-line verdict.
    - Scoreboard line (from step 3).
