@@ -1,0 +1,20 @@
+id: 1766434550
+name: 'Boot Camp 4: Bare Minimum (AMRAP 12)'
+sport: strength_training
+description: AMRAP 12 for when you're really short. Press lap after each station; stop at 12:00. Something
+  beats nothing.
+steps:
+- repeat: 6
+  steps:
+  - exercise: KETTLEBELL_SWING
+    reps: 10
+    note: 40 lb KB
+  - exercise: MEDICINE_BALL_SLAM
+    reps: 8
+    note: 15 lb ball
+  - exercise: BURPEE
+    reps: 6
+    note: Step back, step in, no jump
+  - exercise: PLANK/PLANK
+    time: 20s
+estimated_minutes: 12

@@ -1,0 +1,26 @@
+id: 1766434547
+name: 'Boot Camp 2: Engine Room (AMRAP 20)'
+sport: strength_training
+description: 'AMRAP 20: as many rounds as possible in 20 min. Press lap after each station. Stop at 20:00
+  and note your rounds to beat next time.'
+steps:
+- warmup: 3m
+  note: 1 min easy air bike, then 10 KB halos, 10 goblet squats, 10 band pull-aparts
+- repeat: 8
+  steps:
+  - exercise: INDOOR_ROW
+    lap: true
+    note: 250 m row, press lap when done
+  - exercise: GOBLET_SQUAT
+    reps: 10
+    note: 40 lb KB
+  - exercise: RENEGADE_ROW
+    reps: 10
+    note: 5 per side, PowerBlocks 25-30
+  - exercise: THRUSTERS
+    reps: 10
+    note: 15 lb med ball, no jump
+  - exercise: DEAD_BUG
+    reps: 20
+    note: 10 per side
+estimated_minutes: 23

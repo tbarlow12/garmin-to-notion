@@ -1,0 +1,22 @@
+id: 1766434545
+name: 'Boot Camp 1: Swing & Slam (EMOM 20)'
+sport: strength_training
+description: 'EMOM 20, 5 rounds. Each minute: do the reps, rest the remainder. If reps take >45 s, drop
+  reps or weight. No jumping (Achilles).'
+steps:
+- warmup: 3m
+  note: 1 min easy air bike, then 10 KB halos, 10 goblet squats, 10 band pull-aparts
+- repeat: 5
+  steps:
+  - exercise: KETTLEBELL_SWING
+    time: 1m
+    note: 15 swings (40 lb KB), rest rest of minute
+  - exercise: MEDICINE_BALL_SLAM
+    time: 1m
+    note: 12 slams (15 lb ball), rest rest of minute
+  - exercise: PUSH_UP/PUSH_UP
+    time: 1m
+    note: 10 push-ups (handles), rest rest of minute
+  - exercise: AIR_BIKE
+    time: 1m
+    note: 30 s all-out, then easy spin
