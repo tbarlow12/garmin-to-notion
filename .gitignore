@@ -38,6 +38,7 @@ htmlcov/
 # Claude Code (local settings stay private; shared skills are committed)
 .claude/*
 !.claude/skills/
+!.claude/bin/
 
 # Images (branding assets, not needed in repo)
 img/

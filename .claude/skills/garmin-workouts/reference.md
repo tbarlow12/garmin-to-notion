@@ -63,7 +63,7 @@ beside it, like `note:`).
 
 | Field | Example | Notes |
 |---|---|---|
-| `exercise` | `GOBLET_SQUAT`, `SQUAT/GOBLET_SQUAT`, `Goblet Squat` | strength catalog; search with `workouts.py exercises TERM`. Use `CATEGORY/EXERCISE` when the bare key is ambiguous (validate tells you) |
+| `exercise` | `GOBLET_SQUAT`, `SQUAT/GOBLET_SQUAT`, `Goblet Squat` | strength catalog; search with `garmin-workouts exercises TERM`. Use `CATEGORY/EXERCISE` when the bare key is ambiguous (validate tells you) |
 | `weight` | `40lb`, `20kg`, `40` | stored in pounds |
 | `note` | `"Hands on bench"` | shows on the watch |
 | `hr_zone` / `power_zone` | `2` | your Garmin zones |

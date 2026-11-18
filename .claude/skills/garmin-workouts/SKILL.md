@@ -5,10 +5,10 @@ description: List, create, edit, delete, schedule or send Tanner's Garmin Connec
 
 # Garmin workouts
 
-Everything lives in this folder:
+The tool is `.claude/bin/garmin-workouts` (talks to Garmin Connect through
+`garminconnect`), with `.claude/bin/workout_spec.py` converting the YAML spec
+format to and from Garmin's workout JSON. This folder holds the rest:
 
-- `workouts.py`: the CLI (talks to Garmin Connect through `garminconnect`).
-- `workout_spec.py`: converts the YAML spec format to and from Garmin's workout JSON.
 - `reference.md`: the spec format. Read it before writing or editing a spec.
 - `workouts/`: spec files for Tanner's Garmin workouts (pulled Nov 18 2026; pull again before editing).
 - `exercises.yaml`: the full strength exercise catalog (1,527 exercises by category) for picking `exercise:` keys.
@@ -18,7 +18,7 @@ Everything lives in this folder:
 
 ```bash
 pip install -r requirements.txt          # garminconnect, PyYAML
-W="python .claude/skills/garmin-workouts/workouts.py"
+W=.claude/bin/garmin-workouts
 ```
 
 Auth comes from the `GARMIN_TOKENS` env var (a base64 tokenstore made by

@@ -1,13 +1,13 @@
 """Human-editable workout specs <-> Garmin Connect workout JSON.
 
-A spec is a small YAML/JSON document (see ``reference.md``) that
+A spec is a small YAML/JSON document (see ``.claude/skills/garmin-workouts/reference.md``) that
 describes a Garmin workout: name, sport, and a list of steps with optional
 repeats. ``to_payload`` builds the JSON body Garmin's workout service accepts
 (the same shape the Garmin Connect editor saves) and ``from_garmin`` turns a
 workout fetched from Garmin back into a spec, so existing workouts can be
 pulled, edited and pushed again.
 
-Nothing here talks to the network; ``workouts.py`` does that.
+Nothing here talks to the network; ``.claude/bin/garmin-workouts`` does that.
 """
 
 from __future__ import annotations
@@ -196,7 +196,7 @@ def resolve_exercise(name: str) -> tuple[str, str]:
     """(category, exercise) from "CATEGORY/EXERCISE", "EXERCISE" or a display name.
 
     Display names and keys come from garminconnect's copy of the Garmin
-    Connect strength catalog. Use ``workouts.py exercises TERM`` to
+    Connect strength catalog. Use ``garmin-workouts exercises TERM`` to
     search it.
     """
     raw = str(name).strip()

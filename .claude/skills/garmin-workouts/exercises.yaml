@@ -1,6 +1,6 @@
 # Garmin Connect strength exercise catalog (1527 exercises, 47 categories).
 # Generated from garminconnect.exercises; use the key (CATEGORY/EXERCISE) or the display name
-# as a step's `exercise:` in a workout spec. Search: workouts.py exercises TERM
+# as a step's `exercise:` in a workout spec. Search: garmin-workouts exercises TERM
 
 BANDED_EXERCISES:
   AB_TWIST: "Banded Ab Twist"

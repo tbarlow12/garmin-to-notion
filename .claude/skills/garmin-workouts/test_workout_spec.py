@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent.parent / "bin"))
 
 from workout_spec import (  # noqa: E402
     SpecError,

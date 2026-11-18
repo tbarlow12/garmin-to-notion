@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """Manage Garmin Connect workouts: list, show, pull, push, delete, schedule.
 
-Workouts are described as small YAML specs (format: reference.md next to this file).
+Workouts are described as small YAML specs (format: .claude/skills/garmin-workouts/reference.md).
 Garmin is the source of truth: pull a workout to a file, edit it, push it
 back. Pushing a spec with an ``id`` updates that workout in place (calendar
 entries keep pointing at it); a spec without one is matched by exact name,
 or created, and its new id is written back into the file.
 
 Usage (from the repo root; needs `pip install -r requirements.txt`):
-    python .claude/skills/garmin-workouts/workouts.py list [--search TEXT]
-    python .claude/skills/garmin-workouts/workouts.py show ID|NAME [--json]
-    python .claude/skills/garmin-workouts/workouts.py pull ID|NAME... [--dir workouts] | --all
-    python .claude/skills/garmin-workouts/workouts.py push FILE... [--dry-run] [--schedule YYYY-MM-DD]
-    python .claude/skills/garmin-workouts/workouts.py validate FILE...
-    python .claude/skills/garmin-workouts/workouts.py delete ID|NAME... [--yes]
-    python .claude/skills/garmin-workouts/workouts.py schedule ID|NAME|FILE [YYYY-MM-DD...] [--weekly mon,wed,fri --weeks 8 --start DATE]
-    python .claude/skills/garmin-workouts/workouts.py calendar [--from DATE] [--to DATE]
-    python .claude/skills/garmin-workouts/workouts.py unschedule SCHEDULE_ID... | --workout REF [--from --to] [--yes]
-    python .claude/skills/garmin-workouts/workouts.py send ID|NAME   # push to the watch now
-    python .claude/skills/garmin-workouts/workouts.py exercises TERM
+    .claude/bin/garmin-workouts list [--search TEXT]
+    .claude/bin/garmin-workouts show ID|NAME [--json]
+    .claude/bin/garmin-workouts pull ID|NAME... [--dir workouts] | --all
+    .claude/bin/garmin-workouts push FILE... [--dry-run] [--schedule YYYY-MM-DD]
+    .claude/bin/garmin-workouts validate FILE...
+    .claude/bin/garmin-workouts delete ID|NAME... [--yes]
+    .claude/bin/garmin-workouts schedule ID|NAME|FILE [YYYY-MM-DD...] [--weekly mon,wed,fri --weeks 8 --start DATE]
+    .claude/bin/garmin-workouts calendar [--from DATE] [--to DATE]
+    .claude/bin/garmin-workouts unschedule SCHEDULE_ID... | --workout REF [--from --to] [--yes]
+    .claude/bin/garmin-workouts send ID|NAME   # push to the watch now
+    .claude/bin/garmin-workouts exercises TERM
 
 Auth: the GARMIN_TOKENS env var (base64 tokenstore from
 scripts/generate_token.py) or a cached tokenstore at GARMIN_TOKENSTORE,
@@ -40,11 +40,13 @@ from typing import Any
 
 import yaml
 
-from workout_spec import SpecError, from_garmin, to_payload
 
 logger = logging.getLogger("workouts")
 HERE = Path(__file__).resolve().parent
-DEFAULT_DIR = HERE / "workouts"
+sys.path.insert(0, str(HERE))
+DEFAULT_DIR = HERE.parent / "skills" / "garmin-workouts" / "workouts"
+
+from workout_spec import SpecError, from_garmin, to_payload  # noqa: E402
 
 
 # --- Garmin -----------------------------------------------------------------
