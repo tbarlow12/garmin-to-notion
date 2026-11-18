@@ -94,6 +94,53 @@ def _activity_row(a: dict[str, Any]) -> dict[str, Any]:
         "intensity_minutes": (a.get("moderateIntensityMinutes") or 0) + 2 * (a.get("vigorousIntensityMinutes") or 0),
     }
 
+_LEG_FIELDS = ("startTimeLocal", "duration", "averageHR", "maxHR", "calories", "distance",
+               "activityTrainingLoad", "moderateIntensityMinutes", "vigorousIntensityMinutes")
+
+
+def expand(garmin, acts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Replace each multisport parent with its legs (dropping transitions).
+
+    A lift recorded as a Garmin multisport workout (warm-up, strength, cooldown)
+    is one parent activity whose type is multi_sport, with no exercise sets of
+    its own. Its strength leg keeps the parent's name (e.g. "Upper Push 1") so
+    it matches the planned workout and earlier sessions.
+    """
+    out = []
+    for a in acts:
+        if (a.get("activityType") or {}).get("typeKey") != "multi_sport":
+            out.append(a)
+            continue
+        try:
+            full = garmin.get_activity(a["activityId"]) or {}
+            kids = (full.get("metadataDTO") or {}).get("childIds") or []
+            legs = [garmin.get_activity(k) for k in kids]
+        except Exception:  # noqa: BLE001
+            legs = []
+        legs = [leg for leg in legs if leg and (leg.get("activityTypeDTO") or {}).get("typeKey") != "transition_v2"]
+        if not legs:
+            out.append(a)
+            continue
+        legs.sort(key=lambda leg: (leg.get("summaryDTO") or {}).get("startTimeLocal") or "")
+        so_far = 0.0  # Garmin reports each leg's training load as a running total
+        for leg in legs:
+            summ = leg.get("summaryDTO") or {}
+            kind = (leg.get("activityTypeDTO") or {}).get("typeKey")
+            row = {k: summ.get(k) for k in _LEG_FIELDS}
+            cumulative = row["activityTrainingLoad"] or 0
+            row["activityTrainingLoad"] = max(cumulative - so_far, 0)
+            so_far = max(so_far, cumulative)
+            row["startTimeLocal"] = (row["startTimeLocal"] or a.get("startTimeLocal") or "").replace("T", " ")
+            row.update(activityId=leg["activityId"], activityType={"typeKey": kind},
+                       aerobicTrainingEffect=summ.get("trainingEffect"),
+                       activityName=a.get("activityName") if kind == "strength_training" else leg.get("activityName"))
+            out.append(row)
+    return out
+
+
+def activities(garmin, start: dt.date, end: dt.date) -> list[dict[str, Any]]:
+    return expand(garmin, garmin.get_activities_by_date(start.isoformat(), end.isoformat()) or [])
+
 
 def strength_loads(garmin, activity_id) -> dict[str, dict[str, Any]]:
     """Per exercise: sets, heaviest weight (lb) and total reps if the watch counted them."""
@@ -133,7 +180,7 @@ def planned_for(garmin, week: dict[str, Any], start: dt.date, end: dt.date) -> t
 def review(garmin, week: dict[str, Any], start: dt.date) -> dict[str, Any]:
     end = start + dt.timedelta(days=6)
     now = today(week)
-    acts = [_activity_row(a) for a in garmin.get_activities_by_date(start.isoformat(), end.isoformat()) or []]
+    acts = [_activity_row(a) for a in activities(garmin, start, end)]
     acts.sort(key=lambda a: (a["date"], a["start"]))
     planned, plan_source = planned_for(garmin, week, start, end)
     start_by = week.get("start_by", "05:30")
@@ -148,6 +195,8 @@ def review(garmin, week: dict[str, Any], start: dt.date) -> dict[str, Any]:
         prev = [h for h in history if h.get("activityName") == a["name"]]
         if prev:
             p = max(prev, key=lambda h: h.get("startTimeLocal") or "")
+            p = next((x for x in expand(garmin, [p])
+                      if (x.get("activityType") or {}).get("typeKey") == "strength_training"), p)
             a["previous"] = {"date": (p.get("startTimeLocal") or "")[:10],
                              "minutes": round((p.get("duration") or 0) / 60),
                              "loads": strength_loads(garmin, p["activityId"])}
