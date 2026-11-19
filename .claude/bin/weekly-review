@@ -354,8 +354,24 @@ def _pretty(key: str) -> str:
     return (key or "").split("/")[-1].replace("_", " ").strip().title()
 
 
-def main_lifts(garmin, workout_id) -> list[str]:
-    """'Block A: Dumbbell Bench Press 60 lb, ...' lines from a lift workout's first two circuits."""
+GARMIN_WORKOUT_URL = "https://connect.garmin.com/modern/workout/{}"
+
+
+def _target(step: dict[str, Any]) -> str:
+    if step.get("reps"):
+        return str(step["reps"])
+    t = step.get("time")
+    if t:
+        t = str(t)
+        return t.replace("m", " min").replace("s", " s") if t[:-1].isdigit() else t
+    return "lap" if step.get("lap") else ""
+
+
+def lift_blocks(garmin, workout_id) -> list[dict[str, Any]]:
+    """The circuits of a workout's strength part: label, rounds and exercises (name, weight, target).
+
+    Empty for a workout with no strength part (cardio, zone 2).
+    """
     sys.path.insert(0, str(HERE))
     from workout_spec import from_garmin
 
@@ -364,21 +380,50 @@ def main_lifts(garmin, workout_id) -> list[str]:
     for seg in spec.get("segments") or [{"sport": spec.get("sport"), "steps": spec.get("steps") or []}]:
         if seg.get("sport") in ("strength_training", "strength"):
             steps += seg.get("steps") or []
-    blocks = [st for st in steps if "repeat" in st][:2]
-    lines = []
-    for label, block in zip("AB", blocks):
+    blocks = []
+    for n, block in enumerate(st for st in steps if "repeat" in st):
         moves = []
         for st in block.get("steps") or []:
-            if not st.get("exercise"):
+            if not st.get("exercise") or str(st["exercise"]).upper().startswith("WARM_UP"):
                 continue
             name = st.get("note") if str(st["exercise"]).endswith("/") else _pretty(st["exercise"])
-            moves.append(f"{name} {st['weight']}" if st.get("weight") else str(name))
-        lines.append(f"Block {label} (x{block['repeat']}): " + ", ".join(moves))
-    return lines
+            if st.get("note") and not str(st["exercise"]).endswith("/") and len(st["note"]) < 25:
+                name = f"{name} ({st['note']})"
+            moves.append({"exercise": name, "weight": str(st.get("weight") or "BW"), "target": _target(st)})
+        label = f"Block {'AB'[n]}" if n < 2 else ("Core" if n == 2 else f"Block {n + 1}")
+        blocks.append({"label": label, "rounds": block["repeat"], "exercises": moves})
+    return blocks
+
+
+def main_lifts(blocks: list[dict[str, Any]]) -> list[str]:
+    """'Block A (x3): Dumbbell Bench Press 60lb, ...' lines for Block A and B."""
+    return [f"{b['label']} (x{b['rounds']}): " + ", ".join(
+        f"{m['exercise']} {m['weight']}" if m["weight"] != "BW" else m["exercise"] for m in b["exercises"])
+        for b in blocks[:2]]
+
+
+def log_body(cardio: str | None, blocks: list[dict[str, Any]]) -> str:
+    """Notion page body for a Planned Workout Log entry: a table per block, rounds left blank."""
+    out = []
+    if cardio:
+        out += ["## Cardio", "", f"{cardio}: planned. Log time, distance and pace here.", ""]
+    for b in blocks:
+        rounds = [f"Round {i + 1}" for i in range(b["rounds"])]
+        cols = ["Exercise", "Weight", "Target", *rounds, "Notes"]
+        out += [f"## {b['label']} ({b['rounds']} rounds)", "", "| " + " | ".join(cols) + " |",
+                "|" + " --- |" * len(cols)]
+        out += ["| " + " | ".join([m["exercise"], m["weight"], m["target"], *[""] * len(rounds), ""]) + " |"
+                for m in b["exercises"]]
+        out.append("")
+    if blocks:
+        out += ["## Next time", "", "Rule: 12 on all 3 rounds → up one step. Under 6 in round 1 → down one step. "
+                "Otherwise same weight, +1 rep."]
+    return "\n".join(out).strip()
 
 
 def events(garmin, week: dict[str, Any], start: dt.date, end: dt.date) -> list[dict[str, Any]]:
-    """Google Calendar events mirroring what is on the Garmin calendar, one per training day."""
+    """One entry per training day on the Garmin calendar: the Google Calendar event and the
+    Notion Workout Log page to create for it."""
     cfg = week.get("google_calendar") or {}
     tz = week.get("timezone", "UTC")
     by_date = defaultdict(list)
@@ -391,14 +436,29 @@ def events(garmin, week: dict[str, Any], start: dt.date, end: dt.date) -> list[d
         slot = cfg.get(day) or (cfg.get("weekday") if d.weekday() < 5 else None) or {}
         order = [str(n) for n in week["days"][day].get("workouts") or []]
         items = sorted(by_date[date], key=lambda i: order.index(i.get("title")) if i.get("title") in order else 99)
-        title = f"{slot.get('emoji', '')} " + " + ".join(i.get("title") or "?" for i in items)
-        desc = []
+        names = " + ".join(i.get("title") or "?" for i in items)
+        lift = cardio = None
+        blocks: list[dict[str, Any]] = []
         for i in items:
-            lifts = main_lifts(garmin, i["workoutId"]) if not str(i.get("title")).lower().startswith(
-                ("zone", "treadmill", "echo", "row", "cardio")) else []
-            desc += ([f"{i.get('title')}:"] + lifts) if lifts else []
-        ev = {"date": date, "title": title.strip(), "calendar_id": cfg.get("calendar_id"),
-              "description": "\n".join(desc) or None, "timezone": tz}
+            b = lift_blocks(garmin, i["workoutId"])
+            if b and lift is None:
+                lift, blocks = i, b
+            elif cardio is None:
+                cardio = i
+        desc = ([f"{lift.get('title')}:"] + main_lifts(blocks)) if lift else []
+        select = (lift or cardio or {}).get("title") or ""
+        if select.lower().startswith("zone 2"):
+            select = "Zone 2"
+        ev = {"date": date, "title": f"{slot.get('emoji', '')} {names}".strip(),
+              "calendar_id": cfg.get("calendar_id"), "description": "\n".join(desc) or None, "timezone": tz,
+              "log": {
+                  "data_source": (week.get("workout_log") or {}).get("data_source"),
+                  "Session": f"{d.strftime('%a %b')} {d.day} · {names}",
+                  "Date": date, "Status": "Planned", "Workout": select,
+                  "Garmin workout": GARMIN_WORKOUT_URL.format(lift["workoutId"]) if lift else None,
+                  "Garmin cardio": GARMIN_WORKOUT_URL.format(cardio["workoutId"]) if cardio else None,
+                  "body": log_body(cardio.get("title") if cardio else None, blocks),
+              }}
         if slot.get("start") and slot.get("end"):
             ev.update(start=f"{date}T{slot['start']}:00", end=f"{date}T{slot['end']}:00")
         else:

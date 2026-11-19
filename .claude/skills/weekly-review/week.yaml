@@ -40,3 +40,8 @@ google_calendar:
   calendar_id: 9cf8668fc8c2fb506eb64baf7ae3e8feb702562d741bd9c1d058b4469b9d920b@group.calendar.google.com  # "Habits"
   weekday: {start: "05:15", end: "06:30", emoji: "💪"}
   sat: {start: null, end: null, emoji: "🚴"}   # Sat time not set yet (Nov 19 2026)
+
+# Notion "Workout Log": one Planned page per scheduled training day (step 6).
+workout_log:
+  data_source: collection://41de9187-fa65-81dd-820b-000b4efc8701
+  url: https://app.notion.com/p/41de9187fa6581ed9670dad6f60fb5e5

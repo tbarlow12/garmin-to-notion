@@ -70,18 +70,26 @@ enforce, in short:
    standard week every week: don't rotate, swap or "make up" anything. Change
    `week.yaml` only when Tanner asks for a different week or agrees to a change
    you proposed. Commit `week.yaml`; workout edits happen on Garmin only.
-6. **Mirror to Google Calendar.** Right after `plan --apply`, with the same
-   dates, run `$R events`. It reads what is actually on the Garmin calendar and
-   returns one event per training day: title (`💪 <cardio> + <lift>` on
-   weekdays, `🚴 Zone 2: 45-60 min` on Saturday), start/end in his time zone,
-   and the lift's Block A/B exercises and weights as the description. The
-   calendar id and times are under `google_calendar` in `week.yaml` (his
-   "Habits" calendar; weekdays 5:15-6:30 America/Denver). With the Google
-   Calendar connector, list that calendar's events for the range first and
-   skip any day that already has an event with the same title, so reruns never
-   duplicate; then create the rest. Skip entries marked `skip` (Saturday has no
-   time until he picks one) and say so in one line. Don't touch his other
-   events. If the connector isn't in the session, say so and move on;
+6. **Log pages and Google Calendar.** Right after `plan --apply`, with the
+   same dates, run `$R events`. It reads what is actually on the Garmin
+   calendar and returns one entry per training day with two parts:
+   - `log`: a Planned page for his Notion **Workout Log** (data source in
+     `week.yaml` under `workout_log`). Create it with the Notion connector:
+     Session (title), Date, Workout, Status "Planned", Garmin workout and
+     Garmin cardio URLs, and `body` as the page content (a table per block:
+     Exercise, Weight, Target, one column per round, Notes, pre-filled from
+     Garmin). Skip a day that already has a Workout Log page for that date.
+   - The Google Calendar event: title (`💪 <cardio> + <lift>` on weekdays,
+     `🚴 Zone 2: 45-60 min` on Saturday), start/end in his time zone, and the
+     Block A/B weights as the description. Make the description's first line
+     `Log (reps per round): <that day's Workout Log page URL>`. The calendar
+     id and times are under `google_calendar` in `week.yaml` (his "Habits"
+     calendar; weekdays 5:15-6:30 America/Denver). List that calendar's
+     events for the range first and skip any day that already has an event
+     with the same title, so reruns never duplicate.
+   Skip entries marked `skip` (Saturday has no time until he picks one; its
+   log page is still fine to create) and say so in one line. Don't touch his
+   other events. If a connector isn't in the session, say which and move on;
    Garmin is what matters.
 7. **Report** (keep it short; he skims):
    - One-line verdict.
