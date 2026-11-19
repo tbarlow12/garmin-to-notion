@@ -10,6 +10,12 @@ on:
     - cron: '0 6 * * *'   # 12 AM MDT (prev day UTC)
   workflow_dispatch:
 
+# Don't let a slow run overlap the next scheduled one (both would fight over
+# the Garmin token cache and double-write Notion rows).
+concurrency:
+  group: garmin-to-notion-sync
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
