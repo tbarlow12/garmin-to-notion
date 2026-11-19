@@ -347,6 +347,66 @@ def plan(garmin, week: dict[str, Any], start: dt.date, end: dt.date, apply: bool
     print(f"\nScheduled {n} entr{'y' if n == 1 else 'ies'}.")
 
 
+# --- Google Calendar mirror -------------------------------------------------
+
+
+def _pretty(key: str) -> str:
+    return (key or "").split("/")[-1].replace("_", " ").strip().title()
+
+
+def main_lifts(garmin, workout_id) -> list[str]:
+    """'Block A: Dumbbell Bench Press 60 lb, ...' lines from a lift workout's first two circuits."""
+    sys.path.insert(0, str(HERE))
+    from workout_spec import from_garmin
+
+    spec = from_garmin(garmin.get_workout_by_id(workout_id))
+    steps = []
+    for seg in spec.get("segments") or [{"sport": spec.get("sport"), "steps": spec.get("steps") or []}]:
+        if seg.get("sport") in ("strength_training", "strength"):
+            steps += seg.get("steps") or []
+    blocks = [st for st in steps if "repeat" in st][:2]
+    lines = []
+    for label, block in zip("AB", blocks):
+        moves = []
+        for st in block.get("steps") or []:
+            if not st.get("exercise"):
+                continue
+            name = st.get("note") if str(st["exercise"]).endswith("/") else _pretty(st["exercise"])
+            moves.append(f"{name} {st['weight']}" if st.get("weight") else str(name))
+        lines.append(f"Block {label} (x{block['repeat']}): " + ", ".join(moves))
+    return lines
+
+
+def events(garmin, week: dict[str, Any], start: dt.date, end: dt.date) -> list[dict[str, Any]]:
+    """Google Calendar events mirroring what is on the Garmin calendar, one per training day."""
+    cfg = week.get("google_calendar") or {}
+    tz = week.get("timezone", "UTC")
+    by_date = defaultdict(list)
+    for it in gw.scheduled(garmin, start, end):
+        by_date[it["date"]].append(it)
+    out = []
+    for date in sorted(by_date):
+        d = dt.date.fromisoformat(date)
+        day = DAYS[d.weekday()]
+        slot = cfg.get(day) or (cfg.get("weekday") if d.weekday() < 5 else None) or {}
+        order = [str(n) for n in week["days"][day].get("workouts") or []]
+        items = sorted(by_date[date], key=lambda i: order.index(i.get("title")) if i.get("title") in order else 99)
+        title = f"{slot.get('emoji', '')} " + " + ".join(i.get("title") or "?" for i in items)
+        desc = []
+        for i in items:
+            lifts = main_lifts(garmin, i["workoutId"]) if not str(i.get("title")).lower().startswith(
+                ("zone", "treadmill", "echo", "row", "cardio")) else []
+            desc += ([f"{i.get('title')}:"] + lifts) if lifts else []
+        ev = {"date": date, "title": title.strip(), "calendar_id": cfg.get("calendar_id"),
+              "description": "\n".join(desc) or None, "timezone": tz}
+        if slot.get("start") and slot.get("end"):
+            ev.update(start=f"{date}T{slot['start']}:00", end=f"{date}T{slot['end']}:00")
+        else:
+            ev["skip"] = f"no {day} time set in week.yaml google_calendar"
+        out.append(ev)
+    return out
+
+
 # --- CLI --------------------------------------------------------------------
 
 
@@ -363,6 +423,10 @@ def main() -> int:
     s.add_argument("--to", dest="end", help="Default: the Sunday after --from")
     s.add_argument("--apply", action="store_true")
 
+    s = sub.add_parser("events", help="Google Calendar events mirroring the Garmin calendar (JSON)")
+    s.add_argument("--from", dest="start", help="Default: next Monday (today if it is Monday)")
+    s.add_argument("--to", dest="end", help="Default: the Sunday after --from")
+
     args = p.parse_args()
     week = load_week()
     garmin = gw.login()
@@ -377,7 +441,10 @@ def main() -> int:
         start = dt.date.fromisoformat(args.start) if args.start else (
             now if now.weekday() == 0 else monday(now) + dt.timedelta(days=7))
         end = dt.date.fromisoformat(args.end) if args.end else start + dt.timedelta(days=6 - start.weekday())
-        plan(garmin, week, start, end, args.apply)
+        if args.cmd == "plan":
+            plan(garmin, week, start, end, args.apply)
+        else:
+            print(json.dumps(events(garmin, week, start, end), indent=2, ensure_ascii=False))
     return 0
 
 

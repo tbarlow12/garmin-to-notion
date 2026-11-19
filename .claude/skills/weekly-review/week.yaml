@@ -32,3 +32,11 @@ days:
   sun:
     focus: Rest
     workouts: []
+
+# Mirror of the Garmin schedule on Google Calendar (weekly-review step 6).
+# One event per training day that is on the Garmin calendar. A day with
+# time: null is skipped until Tanner picks a time.
+google_calendar:
+  calendar_id: 9cf8668fc8c2fb506eb64baf7ae3e8feb702562d741bd9c1d058b4469b9d920b@group.calendar.google.com  # "Habits"
+  weekday: {start: "05:30", end: "06:45", emoji: "💪"}
+  sat: {start: null, end: null, emoji: "🚴"}   # Sat time not set yet (Nov 19 2026)

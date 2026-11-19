@@ -45,3 +45,21 @@ def test_multisport_lift_is_expanded_into_named_legs():
     assert [a.get("activityTrainingLoad") for a in out[:2]] == [10, 45]
     row = wr._activity_row(out[1])
     assert (row["date"], row["start"], row["type"]) == ("2026-10-06", "06:21", "strength_training")
+
+
+def test_events_mirror_garmin_calendar(monkeypatch):
+    week = {"timezone": "America/Denver",
+            "days": {"mon": {"workouts": ["Treadmill Vest Walk 30", "Upper Push 1"]},
+                     "sat": {"workouts": ["Zone 2: 45-60 min"]}},
+            "google_calendar": {"calendar_id": "cal", "weekday": {"start": "05:30", "end": "06:45", "emoji": "💪"},
+                                "sat": {"start": None, "end": None, "emoji": "🚴"}}}
+    items = [{"date": "2026-11-23", "title": "Upper Push 1", "workoutId": 1},
+             {"date": "2026-11-23", "title": "Treadmill Vest Walk 30", "workoutId": 2},
+             {"date": "2026-11-28", "title": "Zone 2: 45-60 min", "workoutId": 3}]
+    monkeypatch.setattr(wr.gw, "scheduled", lambda *a: items)
+    monkeypatch.setattr(wr, "main_lifts", lambda g, wid: ["Block A (x3): Bench 60lb"])
+    mon, sat = wr.events(None, week, wr.dt.date(2026, 11, 23), wr.dt.date(2026, 11, 29))
+    assert mon["title"] == "💪 Treadmill Vest Walk 30 + Upper Push 1"
+    assert (mon["start"], mon["end"]) == ("2026-11-23T05:30:00", "2026-11-23T06:45:00")
+    assert mon["description"] == "Upper Push 1:\nBlock A (x3): Bench 60lb"
+    assert sat["title"] == "🚴 Zone 2: 45-60 min" and "skip" in sat

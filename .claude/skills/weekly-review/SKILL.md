@@ -17,6 +17,7 @@ $R review --week-of 2026-11-16 # any week; days after today show as upcoming
 $R review --json               # same data, for digging in
 $R plan                        # next Mon-Sun (today if it's Monday), dry run
 $R plan --from 2026-11-19 --to 2026-11-29 --apply
+$R events --from 2026-11-23 --to 2026-11-29  # Google Calendar events for what's on Garmin (JSON)
 ```
 
 Auth is `GARMIN_TOKENS`, shared with `garmin-workouts` (see that skill for
@@ -69,13 +70,28 @@ enforce, in short:
    standard week every week: don't rotate, swap or "make up" anything. Change
    `week.yaml` only when Tanner asks for a different week or agrees to a change
    you proposed. Commit `week.yaml`; workout edits happen on Garmin only.
-6. **Report** (keep it short; he skims):
+6. **Mirror to Google Calendar.** Right after `plan --apply`, with the same
+   dates, run `$R events`. It reads what is actually on the Garmin calendar and
+   returns one event per training day: title (`💪 <cardio> + <lift>` on
+   weekdays, `🚴 Zone 2: 45-60 min` on Saturday), start/end in his time zone,
+   and the lift's Block A/B exercises and weights as the description. The
+   calendar id and times are under `google_calendar` in `week.yaml` (his
+   "Habits" calendar; weekdays 5:30-6:45 America/Denver). With the Google
+   Calendar connector, list that calendar's events for the range first and
+   skip any day that already has an event with the same title, so reruns never
+   duplicate; then create the rest. Skip entries marked `skip` (Saturday has no
+   time until he picks one) and say so in one line. Don't touch his other
+   events, including the old recurring "💪 Workout - Upper Push/Pull/Full
+   Body" series. If the connector isn't in the session, say so and move on;
+   Garmin is what matters.
+7. **Report** (keep it short; he skims):
    - One-line verdict.
    - Scoreboard line (from step 3).
    - What went well, what fell through (2-4 bullets total).
    - One change for next week, at most, and only if the data supports it
      (e.g. "two misses in a row Thu-Fri: lights out 10:15 Wed and Thu").
-   - Next week: day by day, one line each, as scheduled on Garmin.
+   - Next week: day by day, one line each, as scheduled on Garmin (and
+     whether it reached Google Calendar).
 
 When to ask before scheduling: the first time this skill runs for him, and
 any time you propose changing `week.yaml` or a workout. Otherwise scheduling
