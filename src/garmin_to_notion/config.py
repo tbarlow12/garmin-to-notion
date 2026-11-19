@@ -27,6 +27,19 @@ class Settings:
     fetch_limit: int
     days_back: int
     sync_sleep: bool
+    google_health_client_id: str = ""
+    google_health_client_secret: str = ""
+    google_health_refresh_token: str = ""
+    fitbit_days_back: int = 30
+
+    @property
+    def has_fitbit(self) -> bool:
+        """Fitbit sleep sync runs only when Google Health credentials are set."""
+        return bool(
+            self.google_health_client_id
+            and self.google_health_client_secret
+            and self.google_health_refresh_token
+        )
 
     @property
     def has_all_db_ids(self) -> bool:
@@ -89,4 +102,10 @@ def load_settings(require_garmin: bool = True) -> Settings:
         fetch_limit=int(os.getenv("GARMIN_ACTIVITIES_FETCH_LIMIT", "1000")),
         days_back=int(os.getenv("GARMIN_DAYS_BACK", "30")),
         sync_sleep=os.getenv("SYNC_SLEEP", "true").lower() not in ("false", "0", "no"),
+        google_health_client_id=os.getenv("GOOGLE_HEALTH_CLIENT_ID", ""),
+        google_health_client_secret=os.getenv("GOOGLE_HEALTH_CLIENT_SECRET", ""),
+        google_health_refresh_token=os.getenv("GOOGLE_HEALTH_REFRESH_TOKEN", ""),
+        fitbit_days_back=int(
+            os.getenv("FITBIT_DAYS_BACK") or os.getenv("GARMIN_DAYS_BACK", "30")
+        ),
     )
