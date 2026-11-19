@@ -1,6 +1,6 @@
 ---
 name: weekly-review
-description: Tanner's weekly training review. Pulls the past week from Garmin, scores consistency (5:30 starts, sessions done vs planned, misses) and strength performance, then schedules the coming week's workouts on his Garmin calendar. Use for /weekly-review or when he asks how his week went or to plan next week.
+description: Tanner's weekly training review. Pulls the past week from Garmin, scores consistency (5:15 starts, sessions done vs planned, misses) and strength performance, then schedules the coming week's workouts on his Garmin calendar. Use for /weekly-review or when he asks how his week went or to plan next week.
 ---
 
 # Weekly review
@@ -23,7 +23,7 @@ $R events --from 2026-11-23 --to 2026-11-29  # Google Calendar events for what's
 Auth is `GARMIN_TOKENS`, shared with `garmin-workouts` (see that skill for
 login failures; never print the token). The standard week lives in
 `week.yaml` next to this file: which Garmin workouts go on which day, the
-5:30 start-by time and the time zone. The workouts themselves live on Garmin
+5:15 start-by time and the time zone. The workouts themselves live on Garmin
 (the source of truth) and are changed with the `garmin-workouts` skill, never
 through a pull request. Each weekday is two workouts in order: 30 min of
 cardio (its own workout, so the watch records treadmill, bike or rower
@@ -36,7 +36,7 @@ format, equipment, limits and where his data lives. It is the only source for
 those; don't rely on anything outside the repo. The rules the review must
 enforce, in short:
 
-- On time = first activity starts by 5:30 (alarm 5:10).
+- On time = first activity starts by 5:15 (alarm 5:10).
 - Mon-Fri: 30 min cardio workout, then the lift workout. Sat zone 2, Sun rest.
 - A missed day is never made up and the week never shifts.
 - Two misses in a row: fix the evening, not the morning.
@@ -76,7 +76,7 @@ enforce, in short:
    weekdays, `🚴 Zone 2: 45-60 min` on Saturday), start/end in his time zone,
    and the lift's Block A/B exercises and weights as the description. The
    calendar id and times are under `google_calendar` in `week.yaml` (his
-   "Habits" calendar; weekdays 5:30-6:45 America/Denver). With the Google
+   "Habits" calendar; weekdays 5:15-6:30 America/Denver). With the Google
    Calendar connector, list that calendar's events for the range first and
    skip any day that already has an event with the same title, so reruns never
    duplicate; then create the rest. Skip entries marked `skip` (Saturday has no

@@ -6,7 +6,7 @@
 # Each day lists Garmin workouts by exact name (or id), in order. Change a day
 # here, not in the review, so the plan stays decision-free.
 
-start_by: "05:30"        # a morning counts as on time if the first activity starts by this
+start_by: "05:15"        # a morning counts as on time if the first activity starts by this
 alarm: "05:10"
 timezone: America/Denver
 
@@ -38,5 +38,5 @@ days:
 # time: null is skipped until Tanner picks a time.
 google_calendar:
   calendar_id: 9cf8668fc8c2fb506eb64baf7ae3e8feb702562d741bd9c1d058b4469b9d920b@group.calendar.google.com  # "Habits"
-  weekday: {start: "05:30", end: "06:45", emoji: "💪"}
+  weekday: {start: "05:15", end: "06:30", emoji: "💪"}
   sat: {start: null, end: null, emoji: "🚴"}   # Sat time not set yet (Nov 19 2026)
