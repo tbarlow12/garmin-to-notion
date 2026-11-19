@@ -7,7 +7,7 @@
 # here, not in the review, so the plan stays decision-free.
 
 start_by: "05:15"        # a morning counts as on time if the first activity starts by this
-alarm: "05:10"
+alarm: "04:55"
 timezone: America/Denver
 
 days:

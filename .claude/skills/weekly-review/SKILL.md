@@ -36,7 +36,7 @@ format, equipment, limits and where his data lives. It is the only source for
 those; don't rely on anything outside the repo. The rules the review must
 enforce, in short:
 
-- On time = first activity starts by 5:15 (alarm 5:10).
+- On time = first activity starts by 5:15 (alarm 4:55).
 - Mon-Fri: 30 min cardio workout, then the lift workout. Sat zone 2, Sun rest.
 - A missed day is never made up and the week never shifts.
 - Two misses in a row: fix the evening, not the morning.
@@ -81,8 +81,7 @@ enforce, in short:
    skip any day that already has an event with the same title, so reruns never
    duplicate; then create the rest. Skip entries marked `skip` (Saturday has no
    time until he picks one) and say so in one line. Don't touch his other
-   events, including the old recurring "💪 Workout - Upper Push/Pull/Full
-   Body" series. If the connector isn't in the session, say so and move on;
+   events. If the connector isn't in the session, say so and move on;
    Garmin is what matters.
 7. **Report** (keep it short; he skims):
    - One-line verdict.
